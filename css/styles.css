@@ -322,7 +322,7 @@ svg { display: block; }
   display: grid;
   gap: 14px;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "nav" "stats" "cal";
+  grid-template-areas: "nav" "stats" "cal" "ana";
 }
 
 .footnote {
@@ -704,8 +704,8 @@ svg { display: block; }
 
   .layout {
     grid-template-columns: minmax(0, 1fr) 300px;
-    grid-template-rows: auto 1fr;          /* la hauteur en trop va sous le calendrier */
-    grid-template-areas: "nav stats" "cal stats";
+    grid-template-rows: auto auto 1fr;     /* la hauteur en trop va sous l'analyse */
+    grid-template-areas: "nav stats" "cal stats" "ana stats";
     align-items: start;
     gap: 20px;
   }
@@ -1062,6 +1062,117 @@ textarea.input { resize: vertical; word-break: break-all; }
 .sync-ok { margin: 0; font-size: .82rem; font-weight: 600; color: var(--win); }
 .sync-ok:empty { display: none; }
 #syncOn .lock-link { display: block; margin: 8px auto 0; }
+
+/* ---------- 7sexies. Analyse (courbe + stats par instrument) ---------- */
+.ana-panel {
+  grid-area: ana;
+  padding: 16px 16px 14px;
+  border-radius: var(--radius-xl);
+}
+.ana-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.ana-head h2 { margin: 0; font-size: 1rem; font-weight: 650; }
+.ana-final { font-size: 1.25rem; font-weight: 700; letter-spacing: -.02em; }
+.ana-empty { margin: 10px 0 4px; font-size: .88rem; color: var(--muted); }
+
+.chart { position: relative; }
+.chart-svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: pan-y; }
+.chart-grid { stroke: var(--cell-border); stroke-width: 1; }
+.chart-zero { stroke: var(--field-border); stroke-width: 1; }
+.chart-tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.chart-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart-line.win { stroke: var(--win); }
+.chart-line.loss { stroke: var(--loss); }
+.chart-area { stroke: none; opacity: .12; }
+.chart-area.win { fill: var(--win); }
+.chart-area.loss { fill: var(--loss); }
+.chart-dot { stroke: var(--bg); stroke-width: 2; }
+.chart-dot.win { fill: var(--win); }
+.chart-dot.loss { fill: var(--loss); }
+.chart-cross { stroke: var(--muted); stroke-width: 1; }
+.chart-hit { cursor: crosshair; }
+.chart-tip {
+  position: absolute;
+  z-index: 2;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--glass-shadow);
+  font-size: .78rem;
+  line-height: 1.35;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.chart-tip-date { color: var(--muted); }
+.chart-tip-cum { font-weight: 700; }
+
+.ana-sub {
+  margin: 18px 0 8px;
+  font-size: .8rem;
+  font-weight: 600;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.dir-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dir-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--cell-bg);
+  box-shadow: inset 0 1px 0 var(--rim-top), inset 0 0 0 1px var(--cell-border);
+}
+.dir-label { font-size: .78rem; font-weight: 600; color: var(--muted); }
+.dir-total { font-size: 1.1rem; font-weight: 700; }
+.dir-sub { font-size: .74rem; color: var(--muted); }
+
+.inst-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.inst-row {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--cell-bg);
+  box-shadow: inset 0 1px 0 var(--rim-top), inset 0 0 0 1px var(--cell-border);
+}
+.inst-head { display: flex; justify-content: space-between; gap: 12px; font-size: .92rem; }
+.inst-name { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inst-total { font-weight: 700; white-space: nowrap; }
+.inst-bar { height: 4px; margin: 7px 0 6px; border-radius: 2px; background: var(--track); overflow: hidden; }
+.inst-fill { display: block; height: 100%; border-radius: 2px; }
+.inst-fill.win { background: var(--win); }
+.inst-fill.loss { background: var(--loss); }
+.inst-sub { font-size: .74rem; color: var(--muted); }
+.ana-note { margin: 10px 2px 0; font-size: .76rem; color: var(--muted); }
+.ana-note:empty { display: none; }
+
+@media (min-width: 900px) {
+  .ana-panel { padding: 20px 22px; }
+  .inst-list { grid-template-columns: 1fr 1fr; gap: 8px; }
+}
+
+/* Sections du panneau « Données » */
+.sheet-section-title {
+  margin: 4px 0 10px;
+  font-size: .8rem;
+  font-weight: 600;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.sheet-section {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--field-border);
+}
+.sync-bar { gap: 10px; flex-wrap: wrap; }
 
 /* ---------- 8. Animations ---------- */
 .grid.slide-next { animation: slide-next .38s var(--ease-out); }

@@ -66,7 +66,22 @@
     disableSyncBtn: $('disableSyncBtn'),
     syncError: $('syncError'),
     syncOk: $('syncOk'),
-    syncClose: $('syncClose')
+    syncClose: $('syncClose'),
+    backupPillBtn: $('backupPillBtn'),
+    backupSection: $('backupSection'),
+    backupStartBtn: $('backupStartBtn'),
+    backupForm: $('backupForm'),
+    backupPw: $('backupPw'),
+    backupPw2: $('backupPw2'),
+    backupMakeBtn: $('backupMakeBtn'),
+    backupSaveBtn: $('backupSaveBtn'),
+    restoreBtn: $('restoreBtn'),
+    restoreInput: $('restoreInput'),
+    restoreForm: $('restoreForm'),
+    restoreFile: $('restoreFile'),
+    restorePw: $('restorePw'),
+    restoreGoBtn: $('restoreGoBtn'),
+    csvExportBtn: $('csvExportBtn')
   };
 
   const state = {
@@ -208,6 +223,7 @@
 
     if (direction) restartAnimation(els.grid, direction > 0 ? 'slide-next' : 'slide-prev');
     renderStats(view.stats, direction !== 0);
+    TC.analysis.render(view, isWeek);
   }
 
   /* Affiche la période (mois ou semaine) qui contient cette date */
@@ -558,6 +574,7 @@
   let shownStatusError = null;
 
   function openSyncSheet() {
+    resetBackupUI();
     els.syncOk.textContent = '';
     els.syncError.textContent = '';
     els.pairOutput.hidden = true;
@@ -644,6 +661,83 @@
     els.syncOk.textContent = 'Synchro désactivée sur cet appareil.';
   }
 
+  /* ---------------- Sauvegarde / export ---------------- */
+  let pendingFile = null;          // sauvegarde chiffrée prête à être enregistrée
+  let pendingRestore = null;       // sauvegarde choisie, en attente du mot de passe
+
+  function resetBackupUI() {
+    pendingFile = null;
+    pendingRestore = null;
+    els.backupStartBtn.hidden = false;
+    els.backupForm.hidden = true;
+    els.backupSaveBtn.hidden = true;
+    els.restoreForm.hidden = true;
+    els.backupPw.value = '';
+    els.backupPw2.value = '';
+    els.restorePw.value = '';
+  }
+
+  function makeBackup() {
+    return withBusy(els.backupMakeBtn, async () => {
+      const pw = els.backupPw.value;
+      if (pw.length < TC.backup.MIN_PASSWORD) throw new Error(`Mot de passe trop court (${TC.backup.MIN_PASSWORD} caractères minimum).`);
+      if (pw !== els.backupPw2.value) throw new Error('Les deux mots de passe sont différents.');
+      pendingFile = await TC.backup.createEncrypted(await storage.exportAll(), pw);
+      els.backupPw.value = '';
+      els.backupPw2.value = '';
+      els.backupForm.hidden = true;
+      els.backupSaveBtn.hidden = false;
+      els.syncOk.textContent = 'Sauvegarde prête : touche « Enregistrer le fichier ».';
+    });
+  }
+
+  async function saveBackupFile() {
+    if (!pendingFile) return;
+    const result = await TC.backup.deliver(pendingFile);
+    if (result !== 'cancelled') els.syncOk.textContent = `Sauvegarde enregistrée (${pendingFile.name}).`;
+  }
+
+  async function onRestoreChosen() {
+    const file = els.restoreInput.files[0];
+    els.restoreInput.value = '';
+    if (!file) return;
+    els.syncError.textContent = '';
+    els.syncOk.textContent = '';
+    try {
+      pendingRestore = TC.backup.parseBackup(await file.text());
+      const created = pendingRestore.createdAt ? new Date(pendingRestore.createdAt) : null;
+      els.restoreFile.textContent = file.name + (created && !Number.isNaN(created.getTime())
+        ? ` — créée le ${created.toLocaleDateString('fr-FR')} à ${created.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+        : '');
+      els.restoreForm.hidden = false;
+      els.restorePw.focus();
+    } catch (err) {
+      els.syncError.textContent = err.message;
+    }
+  }
+
+  function restoreBackup() {
+    return withBusy(els.restoreGoBtn, async () => {
+      if (!pendingRestore) return;
+      const map = await TC.backup.readEncrypted(pendingRestore, els.restorePw.value);
+      const changed = await storage.mergeRemote(map);
+      els.restorePw.value = '';
+      els.restoreForm.hidden = true;
+      pendingRestore = null;
+      await reloadFromStorage();
+      sync.schedule();                  // la restauration part aussi vers l'autre appareil
+      els.syncOk.textContent = changed
+        ? 'Sauvegarde restaurée : tes données sont à jour.'
+        : 'Rien à changer : tes données sont déjà plus récentes que cette sauvegarde.';
+    });
+  }
+
+  async function exportCSV() {
+    const file = TC.backup.toCSV(state.entries);
+    const result = await TC.backup.deliver(file);
+    if (result !== 'cancelled') els.syncOk.textContent = `Export CSV créé (${file.name}).`;
+  }
+
   /* ---------------- Événements ---------------- */
   function bindEvents() {
     els.themeBtn.addEventListener('click', toggleTheme);
@@ -664,6 +758,21 @@
     els.syncNowBtn.addEventListener('click', () => sync.syncNow());
     els.copyPairBtn.addEventListener('click', copyPairing);
     els.disableSyncBtn.addEventListener('click', onDisableSync);
+    els.backupPillBtn.addEventListener('click', () => {
+      openSyncSheet();
+      els.backupSection.scrollIntoView({ block: 'start' });
+    });
+    els.backupStartBtn.addEventListener('click', () => {
+      els.backupStartBtn.hidden = true;
+      els.backupForm.hidden = false;
+      els.backupPw.focus();
+    });
+    els.backupMakeBtn.addEventListener('click', makeBackup);
+    els.backupSaveBtn.addEventListener('click', saveBackupFile);
+    els.restoreBtn.addEventListener('click', () => els.restoreInput.click());
+    els.restoreInput.addEventListener('change', onRestoreChosen);
+    els.restoreGoBtn.addEventListener('click', restoreBackup);
+    els.csvExportBtn.addEventListener('click', exportCSV);
     sync.onStatus(renderSyncStatus);
     sync.onRemoteChange(reloadFromStorage);
     storage.onLocalChange(() => sync.schedule());
@@ -753,11 +862,13 @@
     if (els.importSheet.open) els.importSheet.close();
     if (els.syncSheet.open) els.syncSheet.close();
     pendingImport = null;
+    resetBackupUI();
     sync.lock();
     state.entries = {};
     state.selected = null;
     storage.lock();
     TC.vault.lock();
+    render();                          // stats et analyse recalculées à vide
     els.grid.replaceChildren();
     TC.lock.show();
   }

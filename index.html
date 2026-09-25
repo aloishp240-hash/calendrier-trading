@@ -141,6 +141,22 @@
       </div>
       <div class="grid" id="calGrid"></div>
     </section>
+
+    <section class="ana-panel glass" id="analysis" aria-labelledby="anaTitle">
+      <div class="ana-head">
+        <h2 id="anaTitle">Résultat cumulé</h2>
+        <span class="ana-final" id="anaFinal"></span>
+      </div>
+      <div class="chart" id="chart"></div>
+      <p class="ana-empty" id="anaEmpty" hidden>Pas encore de résultat sur cette période.</p>
+      <div id="instSection" hidden>
+        <h3 class="ana-sub">Par sens</h3>
+        <div class="dir-tiles" id="dirTiles"></div>
+        <h3 class="ana-sub">Par instrument</h3>
+        <ul class="inst-list" id="instList"></ul>
+        <p class="ana-note" id="anaNote"></p>
+      </div>
+    </section>
   </main>
 
   <div class="sync-bar">
@@ -148,6 +164,7 @@
       <span class="sync-dot" id="syncDot" aria-hidden="true"></span>
       <span id="syncLabel">Synchronisation</span>
     </button>
+    <button class="sync-pill glass" type="button" id="backupPillBtn">Sauvegarde</button>
   </div>
   <p class="footnote" id="status" role="status"></p>
   <p class="footnote"><button class="lock-link" type="button" id="bioSetupBtn" hidden></button></p>
@@ -156,8 +173,9 @@
 <dialog class="sheet glass" id="syncSheet" aria-labelledby="syncTitle">
   <div class="sheet-form">
     <div class="grabber" aria-hidden="true"></div>
-    <h2 id="syncTitle">Synchronisation</h2>
-    <p class="sheet-sub">Tes données, chiffrées, sur ton PC et ton iPhone.</p>
+    <h2 id="syncTitle">Données</h2>
+    <p class="sheet-sub">Synchronisation entre appareils et sauvegarde.</p>
+    <h3 class="sheet-section-title">Synchronisation</h3>
 
     <div id="syncOff">
       <p class="sync-text">Les données sont chiffrées avant d’être envoyées dans ton dépôt GitHub privé : même GitHub ne peut pas les lire.</p>
@@ -182,6 +200,40 @@
       <p class="sync-hint">À coller sur ton autre appareil (Synchronisation → « Lier cet appareil »). Ne le partage avec personne : il donne accès à tes données.</p>
       <button class="lock-link" type="button" id="disableSyncBtn">Désactiver sur cet appareil</button>
     </div>
+
+    <section class="sheet-section" id="backupSection" aria-labelledby="backupTitle">
+      <h3 class="sheet-section-title" id="backupTitle">Sauvegarde</h3>
+      <p class="sync-text">Un fichier à garder en lieu sûr (Fichiers, iCloud Drive…), pour tout récupérer même sans la synchro.</p>
+
+      <button class="btn btn-ghost btn-block" type="button" id="backupStartBtn">Créer une sauvegarde chiffrée</button>
+      <div id="backupForm" hidden>
+        <div class="field">
+          <label for="backupPw">Mot de passe de la sauvegarde (8 caractères minimum)</label>
+          <input class="input" type="password" id="backupPw" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label for="backupPw2">Confirme le mot de passe</label>
+          <input class="input" type="password" id="backupPw2" autocomplete="new-password">
+        </div>
+        <p class="sync-hint">Sans ce mot de passe, la sauvegarde est illisible — par toi aussi. Note-le (le trousseau iCloud peut le retenir).</p>
+        <button class="btn btn-primary btn-block" type="button" id="backupMakeBtn">Chiffrer la sauvegarde</button>
+      </div>
+      <button class="btn btn-primary btn-block" type="button" id="backupSaveBtn" hidden>Enregistrer le fichier</button>
+
+      <button class="btn btn-ghost btn-block" type="button" id="restoreBtn">Restaurer une sauvegarde</button>
+      <input type="file" id="restoreInput" accept=".json,application/json" hidden>
+      <div id="restoreForm" hidden>
+        <p class="sync-hint" id="restoreFile"></p>
+        <div class="field">
+          <label for="restorePw">Mot de passe de cette sauvegarde</label>
+          <input class="input" type="password" id="restorePw" autocomplete="current-password">
+        </div>
+        <button class="btn btn-primary btn-block" type="button" id="restoreGoBtn">Restaurer</button>
+      </div>
+
+      <button class="btn btn-ghost btn-block" type="button" id="csvExportBtn">Exporter pour Excel / Numbers (CSV)</button>
+      <p class="sync-hint">Le fichier CSV est lisible par n’importe qui : ne l’envoie pas n’importe où.</p>
+    </section>
 
     <p class="form-error" id="syncError" aria-live="assertive"></p>
     <p class="sync-ok" id="syncOk" aria-live="polite"></p>
@@ -260,6 +312,8 @@
 <script src="js/calendar.js"></script>
 <script src="js/csv-import.js"></script>
 <script src="js/sync.js"></script>
+<script src="js/backup.js"></script>
+<script src="js/analysis.js"></script>
 <script src="js/lock.js"></script>
 <script src="js/app.js"></script>
 </body>
