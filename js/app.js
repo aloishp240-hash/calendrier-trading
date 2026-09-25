@@ -40,13 +40,41 @@
     importWarning: $('importWarning'),
     importCancel: $('importCancel'),
     importConfirm: $('importConfirm'),
-    bioSetupBtn: $('bioSetupBtn')
+    bioSetupBtn: $('bioSetupBtn'),
+    totalLabel: $('totalLabel'),
+    calPanel: document.querySelector('.cal-panel'),
+    viewMonth: $('viewMonth'),
+    viewWeek: $('viewWeek'),
+    tradesSection: $('tradesSection'),
+    tradesTotal: $('tradesTotal'),
+    tradeList: $('tradeList'),
+    tradesNote: $('tradesNote'),
+    syncBtn: $('syncBtn'),
+    syncDot: $('syncDot'),
+    syncLabel: $('syncLabel'),
+    syncSheet: $('syncSheet'),
+    syncOff: $('syncOff'),
+    syncOn: $('syncOn'),
+    syncInfo: $('syncInfo'),
+    tokenInput: $('tokenInput'),
+    setupBtn: $('setupBtn'),
+    pairInput: $('pairInput'),
+    linkBtn: $('linkBtn'),
+    syncNowBtn: $('syncNowBtn'),
+    copyPairBtn: $('copyPairBtn'),
+    pairOutput: $('pairOutput'),
+    disableSyncBtn: $('disableSyncBtn'),
+    syncError: $('syncError'),
+    syncOk: $('syncOk'),
+    syncClose: $('syncClose')
   };
 
   const state = {
     entries: {},
+    view: storage.getView(),     // 'month' | 'week'
     year: 0,
     month: 0,
+    weekStart: null,             // lundi de la semaine affichée
     selected: null
   };
 
@@ -94,12 +122,17 @@
     return s;
   }
 
-  function renderDay(d) {
+  const WEEKDAYS = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
+
+  function renderDay(d, isWeek) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'day';
     b.dataset.key = d.key;
-    b.append(span('day-num', d.day));
+    b.append(span('day-num', isWeek ? `${WEEKDAYS[d.weekday]} ${d.day}` : d.day));
+    // En vue semaine, montant et note sont regroupés à droite
+    const body = isWeek ? document.createElement('span') : b;
+    if (isWeek) { body.className = 'day-body'; b.append(body); }
 
     let label = cal.fmtLongDate(d.key);
     if (d.isToday) {
@@ -113,8 +146,8 @@
       if (pnl > 0) b.classList.add('win');
       else if (pnl < 0) b.classList.add('loss');
       b.dataset.level = d.level;
-      b.append(span('day-amt', cal.fmtCompact(pnl)));
-      if (note) b.append(span('day-note', note));
+      body.append(span('day-amt', isWeek ? cal.fmtEur(pnl) : cal.fmtCompact(pnl)));
+      if (note) body.append(span('day-note', note));
       label += ` : ${pnl > 0 ? 'gain' : pnl < 0 ? 'perte' : 'neutre'} ${cal.fmtEur(pnl)}` + (note ? `, ${note}` : '');
     } else {
       label += ' : aucune entrée';
@@ -148,10 +181,20 @@
     if (animate) [els.total, els.winrate, els.best].forEach((el) => restartAnimation(el, 'bump'));
   }
 
-  /* direction : 1 = mois suivant, -1 = précédent, 0 = pas d'animation */
+  /* direction : 1 = période suivante, -1 = précédente, 0 = pas d'animation */
   function render(direction = 0) {
-    const view = cal.buildMonth(state.year, state.month, state.entries);
+    const isWeek = state.view === 'week';
+    const view = isWeek
+      ? cal.buildWeek(state.weekStart, state.entries)
+      : cal.buildMonth(state.year, state.month, state.entries);
     els.monthLabel.textContent = view.label;
+    els.totalLabel.textContent = isWeek ? 'Résultat de la semaine' : 'Résultat du mois';
+    els.calPanel.classList.toggle('is-week-view', isWeek);
+    els.grid.classList.toggle('is-week', isWeek);
+    els.viewMonth.checked = !isWeek;
+    els.viewWeek.checked = isWeek;
+    els.prevBtn.setAttribute('aria-label', isWeek ? 'Semaine précédente' : 'Mois précédent');
+    els.nextBtn.setAttribute('aria-label', isWeek ? 'Semaine suivante' : 'Mois suivant');
 
     const frag = document.createDocumentFragment();
     for (let i = 0; i < view.leading; i++) {
@@ -160,18 +203,50 @@
       empty.setAttribute('aria-hidden', 'true');
       frag.append(empty);
     }
-    view.days.forEach((d) => frag.append(renderDay(d)));
+    view.days.forEach((d) => frag.append(renderDay(d, isWeek)));
     els.grid.replaceChildren(frag);
 
     if (direction) restartAnimation(els.grid, direction > 0 ? 'slide-next' : 'slide-prev');
     renderStats(view.stats, direction !== 0);
   }
 
-  function goMonth(delta) {
-    const d = new Date(state.year, state.month + delta, 1);
-    state.year = d.getFullYear();
-    state.month = d.getMonth();
+  /* Affiche la période (mois ou semaine) qui contient cette date */
+  function showDate(date, direction = 0) {
+    state.year = date.getFullYear();
+    state.month = date.getMonth();
+    state.weekStart = cal.mondayOf(date);
+    render(direction);
+  }
+
+  function go(delta) {
+    if (state.view === 'week') {
+      const d = new Date(state.weekStart);
+      d.setDate(d.getDate() + 7 * delta);
+      state.weekStart = d;
+      // le mois suit la semaine (jeudi = semaine « majoritaire »)
+      const thursday = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 3);
+      state.year = thursday.getFullYear();
+      state.month = thursday.getMonth();
+    } else {
+      const d = new Date(state.year, state.month + delta, 1);
+      state.year = d.getFullYear();
+      state.month = d.getMonth();
+    }
     render(delta);
+  }
+
+  function setView(view) {
+    if (view === state.view) return;
+    state.view = view;
+    storage.setView(view);
+    if (view === 'week') {
+      // semaine d'aujourd'hui si on regardait le mois en cours, sinon la 1re semaine du mois
+      const today = new Date();
+      const inMonth = today.getFullYear() === state.year && today.getMonth() === state.month;
+      state.weekStart = cal.mondayOf(inMonth ? today : new Date(state.year, state.month, 1));
+    }
+    render();
+    restartAnimation(els.grid, 'bump');
   }
 
   function setStatus(message, isError = false) {
@@ -204,12 +279,50 @@
     els.signLoss.checked = isLoss;
   }
 
+  /* Liste des trades du jour (issue de l'import CSV) */
+  function renderTrades(entry) {
+    const trades = entry && entry.trades;
+    els.tradesSection.hidden = !trades || !trades.length;
+    if (els.tradesSection.hidden) return;
+
+    const sum = Math.round(trades.reduce((s, t) => s + t.result, 0) * 100) / 100;
+    els.tradesTotal.textContent = `${trades.length} trade${trades.length > 1 ? 's' : ''} · ${cal.fmtEur(sum)}`;
+    els.tradesTotal.className = sum > 0 ? 'tone-win' : sum < 0 ? 'tone-loss' : '';
+
+    const frag = document.createDocumentFragment();
+    for (const t of trades) {
+      const li = document.createElement('li');
+      li.className = 'trade';
+      const dir = t.dir === 'buy' ? '▲ Buy' : t.dir === 'sell' ? '▼ Sell' : '–';
+      const res = span('trade-res', cal.fmtEur(t.result));
+      res.classList.add(t.result > 0 ? 'tone-win' : t.result < 0 ? 'tone-loss' : 'neutral');
+      li.append(
+        span('trade-time', cal.fmtTime(t.closed)),
+        span('trade-dir', dir),
+        span('trade-name', t.instrument),
+        res
+      );
+      const opened = cal.fmtTime(t.opened);
+      li.title = `${t.dir === 'buy' ? 'Achat (hausse)' : t.dir === 'sell' ? 'Vente (baisse)' : ''}`
+        + (opened ? ` · ouvert à ${opened}` : '') + ` · clôturé à ${cal.fmtTime(t.closed)}`
+        + (t.units ? ` · ${t.units.toLocaleString('fr-FR', { maximumFractionDigits: 4 })} unités` : '');
+      frag.append(li);
+    }
+    els.tradeList.replaceChildren(frag);
+    els.tradeList.scrollTop = 0;
+
+    els.tradesNote.textContent = Math.abs(sum - entry.pnl) >= 0.005
+      ? `Le résultat saisi (${cal.fmtEur(entry.pnl)}) diffère du total des trades.`
+      : '';
+  }
+
   function openSheet(key) {
     state.selected = key;
     const entry = state.entries[key];
 
     els.sheetTitle.textContent = cal.fmtLongDate(key);
     els.sheetSub.textContent = entry ? 'Modifier le résultat du jour' : 'Nouvelle entrée';
+    renderTrades(entry);
     setSign(entry ? entry.pnl < 0 : false);
     els.pnl.value = entry ? formatInput(Math.abs(entry.pnl)) : '';
     els.note.value = entry && entry.note ? entry.note : '';
@@ -275,7 +388,9 @@
 
     const isLoss = amount < 0 || els.signLoss.checked;
     const pnl = Math.round(Math.abs(amount) * 100) / 100 * (isLoss ? -1 : 1);
+    const previous = state.entries[key];
     const entry = { pnl: pnl === 0 ? 0 : pnl, note: els.note.value.trim() || null };
+    if (previous && previous.trades) entry.trades = previous.trades;   // le détail est conservé
 
     state.entries[key] = entry;
     render();
@@ -283,7 +398,7 @@
     highlightDay(key);
 
     try {
-      await storage.save(key, entry);
+      state.entries[key] = await storage.save(key, entry);
       setStatus(DEFAULT_STATUS);
     } catch (err) {
       setStatus('Échec de la sauvegarde — cette entrée sera perdue à la fermeture.', true);
@@ -363,16 +478,16 @@
     pendingImport = null;
 
     Object.assign(state.entries, result.days);
-    const [y, m] = result.to.split('-').map(Number);     // affiche le mois le plus récent importé
-    const direction = Math.sign((y * 12 + m - 1) - (state.year * 12 + state.month));
-    state.year = y;
-    state.month = m - 1;
-    render(direction);
+    const last = cal.parseKey(result.to);                 // affiche la période du dernier jour importé
+    const current = state.view === 'week' ? state.weekStart : new Date(state.year, state.month, 1);
+    const anchor = state.view === 'week' ? cal.mondayOf(last) : new Date(last.getFullYear(), last.getMonth(), 1);
+    showDate(last, Math.sign(anchor - current));
     closeDialog(els.importSheet);
 
     const n = Object.keys(result.days).length;
     try {
       await storage.saveMany(result.days);
+      state.entries = await storage.loadAll();
       setStatus(`Import terminé : ${n} jour${n > 1 ? 's' : ''} mis à jour`);
     } catch (err) {
       setStatus('Échec de l’enregistrement de l’import sur cet appareil.', true);
@@ -386,13 +501,174 @@
     els.bioSetupBtn.hidden = !show;
   }
 
+  /* ---------------- Synchronisation ---------------- */
+  const sync = TC.sync;
+  const relative = new Intl.RelativeTimeFormat('fr-FR', { numeric: 'auto' });
+
+  function sinceLabel(ts) {
+    if (!ts) return 'jamais';
+    const s = Math.round((Date.now() - ts) / 1000);
+    if (s < 45) return 'à l’instant';
+    if (s < 3600) return relative.format(-Math.round(s / 60), 'minute');
+    if (s < 86400) return relative.format(-Math.round(s / 3600), 'hour');
+    return relative.format(-Math.round(s / 86400), 'day');
+  }
+
+  function renderSyncStatus() {
+    const st = sync.getState();
+    els.syncDot.className = 'sync-dot' + (st.status === 'idle' ? ' ok' : st.status === 'syncing' ? ' syncing' : st.status === 'error' ? ' error' : '');
+    els.syncLabel.textContent =
+      st.status === 'off' ? 'Activer la synchronisation'
+      : st.status === 'syncing' ? 'Synchronisation…'
+      : st.status === 'error' ? 'Synchro en erreur — voir le détail'
+      : sync.tokenNeedsRenewal() ? 'Jeton GitHub à renouveler bientôt'
+      : `Synchronisé ${sinceLabel(st.lastSync)}`;
+
+    if (els.syncSheet.open) renderSyncSheet();
+  }
+
+  function renderSyncSheet() {
+    const st = sync.getState();
+    const on = sync.isConfigured();
+    els.syncOff.hidden = on;
+    els.syncOn.hidden = !on;
+    if (on) {
+      els.syncInfo.replaceChildren();
+      const row = (label, value) => {
+        const dt = document.createElement('dt');
+        const dd = document.createElement('dd');
+        dt.textContent = label;
+        dd.textContent = value;
+        els.syncInfo.append(dt, dd);
+      };
+      row('État', st.status === 'syncing' ? 'en cours…' : st.status === 'error' ? 'erreur' : 'actif');
+      row('Dernière synchro', sinceLabel(st.lastSync));
+      row('Dépôt', sync.REPO);
+      els.syncNowBtn.disabled = st.status === 'syncing';
+    }
+    // N'efface que les erreurs venant de l'état de synchro, pas celles d'un formulaire
+    if (st.status === 'error') {
+      els.syncError.textContent = st.error;
+      shownStatusError = st.error;
+    } else if (shownStatusError && els.syncError.textContent === shownStatusError) {
+      els.syncError.textContent = '';
+      shownStatusError = null;
+    }
+  }
+  let shownStatusError = null;
+
+  function openSyncSheet() {
+    els.syncOk.textContent = '';
+    els.syncError.textContent = '';
+    els.pairOutput.hidden = true;
+    els.pairOutput.value = '';
+    disarmDisable();
+    renderSyncSheet();
+    els.syncSheet.classList.remove('closing');
+    els.syncSheet.showModal();
+  }
+
+  /* Recharge l'affichage après des données reçues de l'autre appareil */
+  async function reloadFromStorage() {
+    state.entries = await storage.loadAll();
+    render();
+  }
+
+  async function withBusy(button, task) {
+    const label = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Patiente…';
+    els.syncError.textContent = '';
+    els.syncOk.textContent = '';
+    try {
+      await task();
+    } catch (err) {
+      els.syncError.textContent = err.message || 'Erreur inattendue.';
+    } finally {
+      button.disabled = false;
+      button.textContent = label;
+    }
+  }
+
+  function setupSync() {
+    return withBusy(els.setupBtn, async () => {
+      await sync.setup(els.tokenInput.value);
+      els.tokenInput.value = '';
+      await reloadFromStorage();
+      renderSyncSheet();
+      els.syncOk.textContent = 'Synchro activée. Copie maintenant le code de liaison pour ton autre appareil.';
+    });
+  }
+
+  function linkDevice() {
+    return withBusy(els.linkBtn, async () => {
+      await sync.link(els.pairInput.value);
+      els.pairInput.value = '';
+      await reloadFromStorage();
+      renderSyncSheet();
+      els.syncOk.textContent = 'Appareil relié : tes données sont fusionnées.';
+    });
+  }
+
+  async function copyPairing() {
+    const code = sync.pairingCode();
+    try {
+      await navigator.clipboard.writeText(code);
+      els.syncOk.textContent = 'Code copié. Colle-le sur ton autre appareil.';
+    } catch (err) {
+      // Presse-papiers indisponible : on affiche le code pour une copie manuelle
+      els.pairOutput.hidden = false;
+      els.pairOutput.value = code;
+      els.pairOutput.select();
+      els.syncOk.textContent = 'Copie automatique impossible : sélectionne le code ci-dessous et copie-le.';
+    }
+  }
+
+  let disableArmed = null;
+  function disarmDisable() {
+    clearTimeout(disableArmed);
+    disableArmed = null;
+    els.disableSyncBtn.textContent = 'Désactiver sur cet appareil';
+    els.disableSyncBtn.classList.remove('danger');
+  }
+  async function onDisableSync() {
+    if (!disableArmed) {
+      els.disableSyncBtn.textContent = 'Touche à nouveau pour confirmer (tes données restent sur cet appareil)';
+      els.disableSyncBtn.classList.add('danger');
+      disableArmed = setTimeout(disarmDisable, 5000);
+      return;
+    }
+    disarmDisable();
+    await sync.disable();
+    renderSyncSheet();
+    els.syncOk.textContent = 'Synchro désactivée sur cet appareil.';
+  }
+
   /* ---------------- Événements ---------------- */
   function bindEvents() {
     els.themeBtn.addEventListener('click', toggleTheme);
     systemDark.addEventListener('change', updateThemeUI);
 
-    els.prevBtn.addEventListener('click', () => goMonth(-1));
-    els.nextBtn.addEventListener('click', () => goMonth(1));
+    els.prevBtn.addEventListener('click', () => go(-1));
+    els.nextBtn.addEventListener('click', () => go(1));
+    els.viewMonth.addEventListener('change', () => setView('month'));
+    els.viewWeek.addEventListener('change', () => setView('week'));
+
+    // Synchronisation
+    els.syncBtn.addEventListener('click', openSyncSheet);
+    els.syncClose.addEventListener('click', () => closeDialog(els.syncSheet));
+    els.syncSheet.addEventListener('cancel', (e) => { e.preventDefault(); closeDialog(els.syncSheet); });
+    els.syncSheet.addEventListener('click', (e) => { if (e.target === els.syncSheet) closeDialog(els.syncSheet); });
+    els.setupBtn.addEventListener('click', setupSync);
+    els.linkBtn.addEventListener('click', linkDevice);
+    els.syncNowBtn.addEventListener('click', () => sync.syncNow());
+    els.copyPairBtn.addEventListener('click', copyPairing);
+    els.disableSyncBtn.addEventListener('click', onDisableSync);
+    sync.onStatus(renderSyncStatus);
+    sync.onRemoteChange(reloadFromStorage);
+    storage.onLocalChange(() => sync.schedule());
+    window.addEventListener('online', () => sync.schedule(200));
+    setInterval(renderSyncStatus, 60000);          // « il y a 3 minutes » reste à jour
 
     els.grid.addEventListener('click', (e) => {
       const cell = e.target.closest('.day');
@@ -411,7 +687,7 @@
       const dx = t.clientX - touch.x;
       const dy = t.clientY - touch.y;
       touch = null;
-      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) goMonth(dx < 0 ? 1 : -1);
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1);
     }, { passive: true });
 
     els.importBtn.addEventListener('click', () => els.csvInput.click());
@@ -448,6 +724,7 @@
     const now = new Date();
     state.year = now.getFullYear();
     state.month = now.getMonth();
+    state.weekStart = cal.mondayOf(now);
 
     try {
       await storage.applySeed(TC.SEED);
@@ -461,12 +738,22 @@
     }
     render();
     refreshBioButton();
+    renderSyncStatus();
+
+    try {
+      await sync.load();
+      sync.syncNow();
+    } catch (err) {
+      renderSyncStatus();
+    }
   }
 
   function lockApp() {
     if (els.sheet.open) els.sheet.close();
     if (els.importSheet.open) els.importSheet.close();
+    if (els.syncSheet.open) els.syncSheet.close();
     pendingImport = null;
+    sync.lock();
     state.entries = {};
     state.selected = null;
     storage.lock();
@@ -481,6 +768,8 @@
       hiddenAt = Date.now();
     } else if (hiddenAt && TC.vault.isUnlocked() && Date.now() - hiddenAt > AUTO_LOCK_MS) {
       lockApp();
+    } else if (TC.vault.isUnlocked()) {
+      sync.schedule(300);            // retour dans l'appli : on récupère les nouveautés
     }
   }
 

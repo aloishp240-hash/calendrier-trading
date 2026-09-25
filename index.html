@@ -111,7 +111,7 @@
 
     <section class="stats" aria-label="Résumé du mois">
       <article class="stat glass">
-        <div class="stat-label">Résultat du mois</div>
+        <div class="stat-label" id="totalLabel">Résultat du mois</div>
         <div class="stat-value" id="sumTotal">–</div>
         <div class="stat-sub" id="sumTotalSub"></div>
       </article>
@@ -129,16 +129,67 @@
     </section>
 
     <section class="cal-panel glass" aria-labelledby="monthLabel">
-      <div class="dow-row" aria-hidden="true">
+      <fieldset class="seg view-switch">
+        <legend class="sr-only">Affichage</legend>
+        <input type="radio" name="view" id="viewMonth" value="month" checked>
+        <label for="viewMonth">Mois</label>
+        <input type="radio" name="view" id="viewWeek" value="week">
+        <label for="viewWeek">Semaine</label>
+      </fieldset>
+      <div class="dow-row" id="dowRow" aria-hidden="true">
         <span>Lun</span><span>Mar</span><span>Mer</span><span>Jeu</span><span>Ven</span><span>Sam</span><span>Dim</span>
       </div>
       <div class="grid" id="calGrid"></div>
     </section>
   </main>
 
+  <div class="sync-bar">
+    <button class="sync-pill glass" type="button" id="syncBtn">
+      <span class="sync-dot" id="syncDot" aria-hidden="true"></span>
+      <span id="syncLabel">Synchronisation</span>
+    </button>
+  </div>
   <p class="footnote" id="status" role="status"></p>
   <p class="footnote"><button class="lock-link" type="button" id="bioSetupBtn" hidden></button></p>
 </div>
+
+<dialog class="sheet glass" id="syncSheet" aria-labelledby="syncTitle">
+  <div class="sheet-form">
+    <div class="grabber" aria-hidden="true"></div>
+    <h2 id="syncTitle">Synchronisation</h2>
+    <p class="sheet-sub">Tes données, chiffrées, sur ton PC et ton iPhone.</p>
+
+    <div id="syncOff">
+      <p class="sync-text">Les données sont chiffrées avant d’être envoyées dans ton dépôt GitHub privé : même GitHub ne peut pas les lire.</p>
+      <div class="field">
+        <label for="tokenInput">Premier appareil : colle ton jeton GitHub</label>
+        <input class="input" type="text" id="tokenInput" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…">
+      </div>
+      <button class="btn btn-primary btn-block" type="button" id="setupBtn">Activer la synchro</button>
+      <div class="sync-divider"><span>ou</span></div>
+      <div class="field">
+        <label for="pairInput">Autre appareil : colle le code de liaison</label>
+        <textarea class="input" id="pairInput" rows="3" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="CT1-…"></textarea>
+      </div>
+      <button class="btn btn-ghost btn-block" type="button" id="linkBtn">Lier cet appareil</button>
+    </div>
+
+    <div id="syncOn" hidden>
+      <dl class="import-summary" id="syncInfo"></dl>
+      <button class="btn btn-primary btn-block" type="button" id="syncNowBtn">Synchroniser maintenant</button>
+      <button class="btn btn-ghost btn-block" type="button" id="copyPairBtn">Copier le code de liaison</button>
+      <textarea class="input pair-output" id="pairOutput" rows="3" readonly hidden aria-label="Code de liaison"></textarea>
+      <p class="sync-hint">À coller sur ton autre appareil (Synchronisation → « Lier cet appareil »). Ne le partage avec personne : il donne accès à tes données.</p>
+      <button class="lock-link" type="button" id="disableSyncBtn">Désactiver sur cet appareil</button>
+    </div>
+
+    <p class="form-error" id="syncError" aria-live="assertive"></p>
+    <p class="sync-ok" id="syncOk" aria-live="polite"></p>
+    <div class="actions">
+      <button class="btn btn-ghost" type="button" id="syncClose">Fermer</button>
+    </div>
+  </div>
+</dialog>
 
 <dialog class="sheet glass" id="importSheet" aria-labelledby="importTitle">
   <div class="sheet-form">
@@ -159,6 +210,15 @@
     <div class="grabber" aria-hidden="true"></div>
     <h2 id="sheetTitle"></h2>
     <p class="sheet-sub" id="sheetSub"></p>
+
+    <section class="trades" id="tradesSection" aria-labelledby="tradesTitle" hidden>
+      <div class="trades-head">
+        <h3 id="tradesTitle">Détail des trades</h3>
+        <span id="tradesTotal"></span>
+      </div>
+      <ul class="trade-list" id="tradeList"></ul>
+      <p class="trades-note" id="tradesNote"></p>
+    </section>
 
     <fieldset class="seg">
       <legend class="sr-only">Type de journée</legend>
@@ -199,6 +259,7 @@
 <script src="js/storage.js"></script>
 <script src="js/calendar.js"></script>
 <script src="js/csv-import.js"></script>
+<script src="js/sync.js"></script>
 <script src="js/lock.js"></script>
 <script src="js/app.js"></script>
 </body>

@@ -6,7 +6,7 @@
    Ce fichier ne voit jamais tes données : elles restent chiffrées dans le
    stockage du navigateur. */
 
-const CACHE = 'calendrier-trading-v2';
+const CACHE = 'calendrier-trading-v3';
 const CORE = [
   './',
   './index.html',
@@ -15,6 +15,7 @@ const CORE = [
   './js/storage.js',
   './js/calendar.js',
   './js/csv-import.js',
+  './js/sync.js',
   './js/lock.js',
   './js/app.js',
   './manifest.webmanifest',

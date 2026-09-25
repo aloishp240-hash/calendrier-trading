@@ -11,11 +11,22 @@ TC.csvImport = (function () {
   const COLUMNS = {
     type: 'Record Type',
     closedAt: 'Date closed (UTC)',
+    openedAt: 'Date opened (UTC)',
     date: 'Date (UTC)',
     instrument: 'Instrument',
+    direction: 'Direction',
+    units: 'Units',
     total: 'Total result (account currency)',
     currency: 'Account currency'
   };
+
+  /* « 2026-09-14 15:21:27+00:00 » → date ISO lisible par JavaScript */
+  function toIso(value) {
+    const v = (value || '').trim();
+    if (!v) return null;
+    const d = new Date(v.replace(' ', 'T'));
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
 
   /* Découpe un texte CSV en lignes et colonnes (gère les champs entre guillemets). */
   function parseCSV(text) {
@@ -78,7 +89,21 @@ TC.csvImport = (function () {
       if (col.currency >= 0 && r[col.currency]) currencies.add(r[col.currency].trim());
       const d = byDay.get(day) || { sum: 0, items: [] };
       d.sum += total;
-      d.items.push({ when, name: cleanInstrument(r[col.instrument]) });
+      // Le sens d'une position clôturée est celui de son ouverture :
+      // Buy = pari à la hausse, Sell = pari à la baisse
+      const dir = (col.direction >= 0 ? r[col.direction] : '').trim().toLowerCase();
+      d.items.push({
+        when,
+        name: cleanInstrument(r[col.instrument]),
+        trade: {
+          instrument: cleanInstrument(r[col.instrument]),
+          dir: dir === 'buy' || dir === 'sell' ? dir : null,
+          units: col.units >= 0 ? parseFloat(r[col.units]) || null : null,
+          opened: col.openedAt >= 0 ? toIso(r[col.openedAt]) : null,
+          closed: toIso(when),
+          result: Math.round(total * 100) / 100
+        }
+      });
       byDay.set(day, d);
       trades++;
     }
@@ -88,7 +113,11 @@ TC.csvImport = (function () {
     for (const [day, d] of byDay) {
       d.items.sort((a, b) => (a.when < b.when ? -1 : a.when > b.when ? 1 : 0));
       const pnl = Math.round(d.sum * 100) / 100;
-      days[day] = { pnl: pnl === 0 ? 0 : pnl, note: buildNote(d.items.map((x) => x.name)) };
+      days[day] = {
+        pnl: pnl === 0 ? 0 : pnl,
+        note: buildNote(d.items.map((x) => x.name)),
+        trades: d.items.map((x) => x.trade)
+      };
     }
     const keys = Object.keys(days).sort();
     return { days, trades, from: keys[0], to: keys[keys.length - 1], currencies: [...currencies] };
