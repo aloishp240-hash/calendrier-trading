@@ -79,6 +79,13 @@ TC.storage = (function () {
       await persist();
     },
 
+    /* Enregistre plusieurs jours d'un coup (import CSV). */
+    async saveMany(entries) {
+      await loadCache();
+      mergeInto(cache, entries);
+      await persist();
+    },
+
     async remove(key) {
       await loadCache();
       delete cache[key];

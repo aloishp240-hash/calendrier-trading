@@ -23,6 +23,7 @@ TC.vault = (function () {
 
   let dataKey = null;          // présente en mémoire uniquement quand c'est déverrouillé
   let bioSupport = null;       // mis en cache après la première vérification
+  let pendingBio = null;       // passkey créée, en attente de la 2e validation
 
   function readMeta() {
     try { return JSON.parse(localStorage.getItem(META_KEY)); }
@@ -75,6 +76,15 @@ TC.vault = (function () {
     return prf.results.first;
   }
 
+  async function storeBiometric(credentialId, prfSalt, secret) {
+    const bioKey = await keyFromPrf(secret);
+    const raw = new Uint8Array(await crypto.subtle.exportKey('raw', dataKey));
+    const meta = readMeta();
+    meta.bio = { id: b64(credentialId), salt: b64(prfSalt), key: await seal(bioKey, raw) };
+    writeMeta(meta);
+    raw.fill(0);
+  }
+
   async function biometricAvailable() {
     if (bioSupport !== null) return bioSupport;
     bioSupport = false;
@@ -120,8 +130,10 @@ TC.vault = (function () {
       return true;
     },
 
-    /* À appeler une fois déverrouillé : crée la passkey et range la clé sous Face ID. */
-    async enableBiometric() {
+    /* Activation de Face ID, étape 1 (à appeler directement depuis un toucher) :
+       crée la passkey. Renvoie true si c'est terminé, false s'il faut une
+       2e validation (Safari exige un nouveau toucher pour celle-ci). */
+    async beginBiometric() {
       if (!dataKey) throw new Error('locked');
       const prfSalt = rand(32);
       const cred = await navigator.credentials.create({
@@ -136,16 +148,25 @@ TC.vault = (function () {
         }
       });
       const prf = cred.getClientExtensionResults().prf;
-      if (!prf || prf.enabled === false) throw new Error('prf-unsupported');
-      // Certains navigateurs ne donnent le secret qu'au deuxième passage
-      const secret = (prf.results && prf.results.first) || await prfSecret(cred.rawId, prfSalt);
+      if (!prf || prf.enabled === false) {
+        const err = new Error('La clé d’accès a été enregistrée à un endroit qui ne gère pas le chiffrement (extension PRF absente).');
+        err.name = 'PrfUnsupported';
+        throw err;
+      }
+      if (prf.results && prf.results.first) {
+        await storeBiometric(cred.rawId, prfSalt, prf.results.first);
+        return true;
+      }
+      pendingBio = { id: cred.rawId, salt: prfSalt };
+      return false;
+    },
 
-      const bioKey = await keyFromPrf(secret);
-      const raw = new Uint8Array(await crypto.subtle.exportKey('raw', dataKey));
-      const meta = readMeta();
-      meta.bio = { id: b64(cred.rawId), salt: b64(prfSalt), key: await seal(bioKey, raw) };
-      writeMeta(meta);
-      raw.fill(0);
+    /* Activation de Face ID, étape 2 (nouveau toucher) : obtient le secret de la passkey. */
+    async confirmBiometric() {
+      if (!pendingBio) throw new Error('no-pending');
+      const secret = await prfSecret(pendingBio.id, pendingBio.salt);
+      await storeBiometric(pendingBio.id, pendingBio.salt, secret);
+      pendingBio = null;
     },
 
     async unlockWithBiometric() {
@@ -163,6 +184,7 @@ TC.vault = (function () {
     reset() {
       localStorage.removeItem(META_KEY);
       dataKey = null;
+      pendingBio = null;
     },
 
     async encryptJSON(value) {

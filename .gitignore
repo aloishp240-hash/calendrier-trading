@@ -4,3 +4,6 @@ calendrier-trading.html
 
 # Fichiers système macOS
 .DS_Store
+
+# Exports Trading 212 (données personnelles)
+*.csv

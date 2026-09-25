@@ -876,6 +876,32 @@ body:not(.is-locked) .app { animation: fade-in .35s ease; }
 .bio-offer h2 { margin: 6px 0 6px; font-size: 1.1rem; font-weight: 700; }
 .bio-offer p { margin: 0 0 20px; font-size: .9rem; color: var(--muted); }
 .bio-offer .btn { display: block; width: 100%; margin-top: 10px; }
+.bio-offer .bio-detail { margin: -10px 0 16px; font-size: .72rem; word-break: break-word; }
+.bio-offer .bio-detail:empty { display: none; }
+
+/* Récapitulatif de l'import CSV */
+.import-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  margin: 0 0 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: var(--field-bg);
+  box-shadow: inset 0 0 0 1px var(--field-border);
+  font-size: .9rem;
+}
+.import-summary dt { color: var(--muted); }
+.import-summary dd { margin: 0; font-weight: 600; text-align: right; }
+.import-warning { min-height: 1.2em; margin: 0; font-size: .8rem; color: var(--muted); }
+.import-warning.is-error { color: var(--loss); font-weight: 600; }
+
+/* Petits écrans : 3 boutons dans l'en-tête */
+@media (max-width: 420px) {
+  .top-actions { gap: 8px; }
+  .icon-btn { width: 40px; height: 40px; }
+  .brand h1 { font-size: 1.3rem; }
+}
 
 @keyframes shake {
   0%, 100% { transform: none; }

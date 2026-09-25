@@ -26,6 +26,7 @@ TC.lock = (function () {
     offer: $('bioOffer'),
     offerTitle: $('bioOfferTitle'),
     offerText: $('bioOfferText'),
+    offerDetail: $('bioOfferDetail'),
     offerYes: $('bioYes'),
     offerNo: $('bioNo')
   };
@@ -39,8 +40,11 @@ TC.lock = (function () {
   let pin = '';
   let firstPin = '';
   let onUnlock = null;
+  let onOfferClosed = null;
   let countdown = null;
   let forgotArmed = null;
+  let offerStep = 'create';        // 'create' | 'confirm'
+  let offerFromApp = false;        // proposition ouverte depuis le calendrier (déjà déverrouillé)
 
   /* ---------- Affichage ---------- */
   function setMessage(text, isError = false) {
@@ -208,8 +212,10 @@ TC.lock = (function () {
   }
 
   function showOffer() {
+    offerStep = 'create';
     els.offerTitle.textContent = `Utiliser ${BIO_NAME} ?`;
     els.offerText.textContent = `Déverrouille ton calendrier d’un regard, sans taper ton code. Le code restera toujours utilisable.`;
+    els.offerDetail.textContent = '';
     els.offerYes.textContent = `Activer ${BIO_NAME}`;
     els.offerYes.hidden = false;
     els.offerNo.textContent = 'Pas maintenant';
@@ -217,30 +223,51 @@ TC.lock = (function () {
     els.offer.hidden = false;
   }
 
+  function bioSuccess() {
+    try { localStorage.setItem(ASKED_KEY, '1'); } catch (e) { /* ignoré */ }
+    finish();
+  }
+
+  /* Chaque étape est lancée directement par un toucher : Safari l'exige. */
   async function acceptOffer() {
     els.offerYes.disabled = true;
+    els.offerDetail.textContent = '';
     try {
-      await vault.enableBiometric();
-      try { localStorage.setItem(ASKED_KEY, '1'); } catch (e) { /* ignoré */ }
-      finish();
+      if (offerStep === 'create') {
+        const done = await vault.beginBiometric();
+        if (done) return bioSuccess();
+        offerStep = 'confirm';
+        els.offerTitle.textContent = 'Dernière étape';
+        els.offerText.textContent = `Touche le bouton pour confirmer avec ${BIO_NAME}.`;
+        els.offerYes.textContent = `Confirmer avec ${BIO_NAME}`;
+      } else {
+        await vault.confirmBiometric();
+        bioSuccess();
+      }
     } catch (e) {
       if (e && e.name === 'NotAllowedError') {
-        // L'utilisateur a annulé : on laisse la possibilité de réessayer
+        // Annulé (ou refusé par Safari) : on laisse la possibilité de réessayer
         els.offerText.textContent = 'Activation annulée. Tu peux réessayer, ou continuer avec ton code.';
         els.offerYes.textContent = 'Réessayer';
       } else {
         els.offerTitle.textContent = `${BIO_NAME} indisponible`;
-        els.offerText.textContent = `Cet appareil ou ce navigateur ne permet pas d’utiliser ${BIO_NAME} ici. Ton code fonctionne normalement.`;
+        els.offerText.textContent = `L’activation n’a pas abouti. Ton code fonctionne normalement ; tu pourras réessayer depuis le calendrier.`;
         els.offerYes.hidden = true;
         els.offerNo.textContent = 'Continuer';
       }
+      // Détail technique, pour pouvoir diagnostiquer
+      els.offerDetail.textContent = `Détail : ${(e && e.name) || 'Erreur'} — ${(e && e.message) || e}`;
     } finally {
       els.offerYes.disabled = false;
     }
   }
 
   function declineOffer() {
-    try { localStorage.setItem(ASKED_KEY, '1'); } catch (e) { /* ignoré */ }
+    // « Pas maintenant » : on ne repropose plus au déverrouillage
+    // (le bouton dans le calendrier reste disponible)
+    if (els.offerNo.textContent === 'Pas maintenant') {
+      try { localStorage.setItem(ASKED_KEY, '1'); } catch (e) { /* ignoré */ }
+    }
     finish();
   }
 
@@ -275,12 +302,27 @@ TC.lock = (function () {
       els.root.hidden = true;
       els.root.classList.remove('unlocking');
     }, 280);
-    if (onUnlock) onUnlock();
+    if (offerFromApp) {
+      offerFromApp = false;
+      if (onOfferClosed) onOfferClosed();
+    } else if (onUnlock) {
+      onUnlock();
+    }
+  }
+
+  /* Ouvert depuis le calendrier (bouton « Activer Face ID ») */
+  function offerBiometric(callback) {
+    offerFromApp = true;
+    onOfferClosed = callback;
+    document.body.classList.add('is-locked');
+    els.root.hidden = false;
+    showOffer();
   }
 
   async function show() {
     pin = '';
     firstPin = '';
+    offerFromApp = false;
     setBusy(false);
     disarmForgot();
     mode = vault.isSetUp() ? 'unlock' : 'setup';
@@ -336,6 +378,8 @@ TC.lock = (function () {
       bindEvents();
       show();
     },
-    show
+    show,
+    offerBiometric,
+    BIO_NAME
   };
 })();

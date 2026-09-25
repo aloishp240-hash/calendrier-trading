@@ -31,7 +31,16 @@
     note: $('noteInput'),
     error: $('formError'),
     cancelBtn: $('cancelBtn'),
-    delBtn: $('delBtn')
+    delBtn: $('delBtn'),
+    importBtn: $('importBtn'),
+    csvInput: $('csvInput'),
+    importSheet: $('importSheet'),
+    importFile: $('importFile'),
+    importSummary: $('importSummary'),
+    importWarning: $('importWarning'),
+    importCancel: $('importCancel'),
+    importConfirm: $('importConfirm'),
+    bioSetupBtn: $('bioSetupBtn')
   };
 
   const state = {
@@ -217,22 +226,28 @@
     }
   }
 
-  function closeSheet() {
-    const sheet = els.sheet;
-    if (!sheet.open || sheet.classList.contains('closing')) return;
-    sheet.classList.add('closing');
+  /* Fermeture animée d'un panneau (saisie ou import) */
+  function closeDialog(dialog, onClosed) {
+    if (!dialog.open || dialog.classList.contains('closing')) return;
+    dialog.classList.add('closing');
 
     let done = false;
     const finish = () => {
       if (done) return;
       done = true;
-      sheet.classList.remove('closing');
-      sheet.close();
+      dialog.classList.remove('closing');
+      dialog.close();
+      if (onClosed) onClosed();
+    };
+    dialog.addEventListener('animationend', (e) => { if (e.target === dialog) finish(); });
+    setTimeout(finish, 350);        // filet de sécurité si l'animation ne se déclenche pas
+  }
+
+  function closeSheet() {
+    closeDialog(els.sheet, () => {
       if (state.selected) highlightDayFocusOnly(state.selected);
       state.selected = null;
-    };
-    sheet.addEventListener('animationend', (e) => { if (e.target === sheet) finish(); }, { once: true });
-    setTimeout(finish, 350);        // filet de sécurité si l'animation ne se déclenche pas
+    });
   }
 
   function highlightDayFocusOnly(key) {
@@ -289,6 +304,88 @@
     }
   }
 
+  /* ---------------- Import CSV Trading 212 ---------------- */
+  let pendingImport = null;
+
+  function summaryRow(label, value) {
+    const dt = document.createElement('dt');
+    const dd = document.createElement('dd');
+    dt.textContent = label;
+    dd.textContent = value;
+    els.importSummary.append(dt, dd);
+  }
+
+  async function onCsvChosen() {
+    const file = els.csvInput.files[0];
+    els.csvInput.value = '';                 // permet de re-choisir le même fichier
+    if (!file) return;
+
+    pendingImport = null;
+    els.importFile.textContent = file.name;
+    els.importSummary.replaceChildren();
+    els.importWarning.classList.remove('is-error');
+
+    try {
+      const result = TC.csvImport.parseTrading212(await file.text());
+      const keys = Object.keys(result.days);
+      const total = Math.round(keys.reduce((s, k) => s + result.days[k].pnl, 0) * 100) / 100;
+      const replaced = keys.filter((k) => state.entries[k]).length;
+
+      summaryRow('Période', `${cal.fmtShortDate(result.from)} → ${cal.fmtShortDate(result.to)}`);
+      summaryRow('Jours de trading', String(keys.length));
+      summaryRow('Trades clôturés', String(result.trades));
+      summaryRow('Résultat total', cal.fmtEur(total));
+
+      const notes = [replaced
+        ? `${replaced} jour${replaced > 1 ? 's' : ''} déjà saisi${replaced > 1 ? 's' : ''} ser${replaced > 1 ? 'ont' : 'a'} remplacé${replaced > 1 ? 's' : ''} (montant et note).`
+        : 'Aucun jour déjà saisi ne sera modifié.'];
+      const other = result.currencies.filter((c) => c !== 'EUR');
+      if (other.length) notes.push(`Attention : devise du compte ${other.join(', ')} (l’appli affiche en €).`);
+      els.importWarning.textContent = notes.join(' ');
+
+      pendingImport = result;
+      els.importConfirm.hidden = false;
+      els.importCancel.textContent = 'Annuler';
+    } catch (err) {
+      els.importWarning.textContent = err.message || 'Fichier illisible.';
+      els.importWarning.classList.add('is-error');
+      els.importConfirm.hidden = true;
+      els.importCancel.textContent = 'Fermer';
+    }
+
+    els.importSheet.classList.remove('closing');
+    els.importSheet.showModal();
+  }
+
+  async function confirmImport() {
+    const result = pendingImport;
+    if (!result) return;
+    pendingImport = null;
+
+    Object.assign(state.entries, result.days);
+    const [y, m] = result.to.split('-').map(Number);     // affiche le mois le plus récent importé
+    const direction = Math.sign((y * 12 + m - 1) - (state.year * 12 + state.month));
+    state.year = y;
+    state.month = m - 1;
+    render(direction);
+    closeDialog(els.importSheet);
+
+    const n = Object.keys(result.days).length;
+    try {
+      await storage.saveMany(result.days);
+      setStatus(`Import terminé : ${n} jour${n > 1 ? 's' : ''} mis à jour`);
+    } catch (err) {
+      setStatus('Échec de l’enregistrement de l’import sur cet appareil.', true);
+    }
+  }
+
+  /* ---------------- Face ID depuis le calendrier ---------------- */
+  async function refreshBioButton() {
+    const show = TC.vault.isUnlocked() && !TC.vault.hasBiometric() && await TC.vault.biometricAvailable();
+    els.bioSetupBtn.textContent = `Activer ${TC.lock.BIO_NAME}`;
+    els.bioSetupBtn.hidden = !show;
+  }
+
   /* ---------------- Événements ---------------- */
   function bindEvents() {
     els.themeBtn.addEventListener('click', toggleTheme);
@@ -316,6 +413,15 @@
       touch = null;
       if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) goMonth(dx < 0 ? 1 : -1);
     }, { passive: true });
+
+    els.importBtn.addEventListener('click', () => els.csvInput.click());
+    els.csvInput.addEventListener('change', onCsvChosen);
+    els.importConfirm.addEventListener('click', confirmImport);
+    els.importCancel.addEventListener('click', () => closeDialog(els.importSheet));
+    els.importSheet.addEventListener('cancel', (e) => { e.preventDefault(); closeDialog(els.importSheet); });
+    els.importSheet.addEventListener('click', (e) => { if (e.target === els.importSheet) closeDialog(els.importSheet); });
+
+    els.bioSetupBtn.addEventListener('click', () => TC.lock.offerBiometric(refreshBioButton));
 
     els.form.addEventListener('submit', saveEntry);
     els.cancelBtn.addEventListener('click', closeSheet);
@@ -354,10 +460,13 @@
       setStatus('Impossible de lire les données de cet appareil.', true);
     }
     render();
+    refreshBioButton();
   }
 
   function lockApp() {
     if (els.sheet.open) els.sheet.close();
+    if (els.importSheet.open) els.importSheet.close();
+    pendingImport = null;
     state.entries = {};
     state.selected = null;
     storage.lock();
