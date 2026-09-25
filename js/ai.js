@@ -380,8 +380,9 @@ TC.ai = (function () {
   async function saveKey() {
     const value = els.keyInput.value.trim();
     setError('');
-    if (!/^[A-Za-z0-9_\-]{30,}$/.test(value)) {
-      setError('Cette clé ne ressemble pas à une clé Gemini (une longue suite de lettres et de chiffres, qui commence souvent par « AIza »).');
+    // Formats connus : « AIza… » (anciennes clés) et « AQ.… » (nouvelles clés, avec un point)
+    if (!/^[A-Za-z0-9._\-]{30,}$/.test(value)) {
+      setError('Cette clé ne ressemble pas à une clé Gemini : copie-la en entier depuis AI Studio (bouton « Copier la clé »), sans espace.');
       return;
     }
     await aiStore.setKey(value);
