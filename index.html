@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#EEF1F6">
+<title>Calendrier Trading</title>
+
+<!-- Appli installable (écran d'accueil) -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Trading">
+<script>
+  // Applique le thème mémorisé avant l'affichage (évite un flash clair/sombre)
+  (function () {
+    try {
+      var t = localStorage.getItem('ct.theme');
+      if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  })();
+</script>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="is-locked">
+
+<div class="backdrop" aria-hidden="true">
+  <span class="blob blob-1"></span>
+  <span class="blob blob-2"></span>
+  <span class="blob blob-3"></span>
+  <span class="blob blob-4"></span>
+</div>
+
+<section class="lock" id="lock" aria-labelledby="lockTitle" hidden>
+  <div class="lock-card glass" id="lockCard">
+    <div class="lock-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V7.8a3.5 3.5 0 0 1 7 0v2.7"/></svg>
+    </div>
+    <h1 class="lock-title" id="lockTitle">Calendrier Trading</h1>
+
+    <div id="lockPad">
+      <p class="lock-msg" id="lockMsg" role="status"></p>
+      <div class="pin-dots" id="pinDots" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <div class="keypad" id="keypad">
+        <button class="key" type="button" data-digit="1">1</button>
+        <button class="key" type="button" data-digit="2">2</button>
+        <button class="key" type="button" data-digit="3">3</button>
+        <button class="key" type="button" data-digit="4">4</button>
+        <button class="key" type="button" data-digit="5">5</button>
+        <button class="key" type="button" data-digit="6">6</button>
+        <button class="key" type="button" data-digit="7">7</button>
+        <button class="key" type="button" data-digit="8">8</button>
+        <button class="key" type="button" data-digit="9">9</button>
+        <button class="key key-plain is-invisible" type="button" id="bioKey" aria-label="Déverrouiller avec Face ID">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M9 9.5v1M15 9.5v1M12 9.5v3.5h-1M9.5 15.5a3.5 3.5 0 0 0 5 0"/></svg>
+        </button>
+        <button class="key" type="button" data-digit="0">0</button>
+        <button class="key key-plain" type="button" id="delKey" aria-label="Effacer le dernier chiffre">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6-7 6-7Z"/><path d="m12 9.5 5 5M17 9.5l-5 5"/></svg>
+        </button>
+      </div>
+      <button class="lock-link" type="button" id="forgotBtn">Code oublié ?</button>
+    </div>
+
+    <div class="bio-offer" id="bioOffer" hidden>
+      <h2 id="bioOfferTitle"></h2>
+      <p id="bioOfferText"></p>
+      <button class="btn btn-primary" type="button" id="bioYes"></button>
+      <button class="btn btn-ghost" type="button" id="bioNo"></button>
+    </div>
+  </div>
+</section>
+
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <h1>Calendrier Trading</h1>
+      <p>Journal de résultats · Trading 212</p>
+    </div>
+    <div class="top-actions">
+      <button class="icon-btn glass" id="lockBtn" type="button" aria-label="Verrouiller">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V7.8a3.5 3.5 0 0 1 7 0v2.7"/></svg>
+      </button>
+      <button class="icon-btn glass" id="themeBtn" type="button" aria-label="Changer de thème">
+        <svg class="icon icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7Z"/></svg>
+        <svg class="icon icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <nav class="month-nav glass" aria-label="Navigation entre les mois">
+      <button class="nav-btn" id="prevBtn" type="button" aria-label="Mois précédent">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg>
+      </button>
+      <h2 id="monthLabel" aria-live="polite"></h2>
+      <button class="nav-btn" id="nextBtn" type="button" aria-label="Mois suivant">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg>
+      </button>
+    </nav>
+
+    <section class="stats" aria-label="Résumé du mois">
+      <article class="stat glass">
+        <div class="stat-label">Résultat du mois</div>
+        <div class="stat-value" id="sumTotal">–</div>
+        <div class="stat-sub" id="sumTotalSub"></div>
+      </article>
+      <article class="stat glass">
+        <div class="stat-label">Jours gagnants</div>
+        <div class="stat-value" id="sumWinrate">–</div>
+        <div class="stat-sub" id="sumWinrateSub"></div>
+        <div class="meter" aria-hidden="true"><span id="winMeter"></span></div>
+      </article>
+      <article class="stat glass">
+        <div class="stat-label">Meilleur jour</div>
+        <div class="stat-value" id="sumBest">–</div>
+        <div class="stat-sub" id="sumBestSub"></div>
+      </article>
+    </section>
+
+    <section class="cal-panel glass" aria-labelledby="monthLabel">
+      <div class="dow-row" aria-hidden="true">
+        <span>Lun</span><span>Mar</span><span>Mer</span><span>Jeu</span><span>Ven</span><span>Sam</span><span>Dim</span>
+      </div>
+      <div class="grid" id="calGrid"></div>
+    </section>
+  </main>
+
+  <p class="footnote" id="status" role="status"></p>
+</div>
+
+<dialog class="sheet glass" id="sheet" aria-labelledby="sheetTitle">
+  <form class="sheet-form" id="sheetForm" novalidate>
+    <div class="grabber" aria-hidden="true"></div>
+    <h2 id="sheetTitle"></h2>
+    <p class="sheet-sub" id="sheetSub"></p>
+
+    <fieldset class="seg">
+      <legend class="sr-only">Type de journée</legend>
+      <input type="radio" name="sign" id="signWin" value="1" checked>
+      <label for="signWin">Gain</label>
+      <input type="radio" name="sign" id="signLoss" value="-1">
+      <label for="signLoss">Perte</label>
+    </fieldset>
+
+    <div class="field">
+      <label for="pnlInput">Montant</label>
+      <div class="amount-wrap">
+        <input class="input input-amount" type="text" id="pnlInput" inputmode="decimal"
+               autocomplete="off" placeholder="0,00" aria-describedby="formError">
+        <span aria-hidden="true">€</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="noteInput">Note (optionnel)</label>
+      <input class="input" type="text" id="noteInput" autocomplete="off"
+             placeholder="ex : gold, 4 trades, journée calme">
+    </div>
+
+    <p class="form-error" id="formError" aria-live="assertive"></p>
+
+    <div class="actions">
+      <button class="btn btn-ghost" type="button" id="cancelBtn">Annuler</button>
+      <button class="btn btn-danger" type="button" id="delBtn">Effacer</button>
+      <button class="btn btn-primary" type="submit" id="saveBtn">Enregistrer</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- seed.js n'existe que sur ton Mac (jamais mis en ligne) -->
+<script src="js/seed.js"></script>
+<script src="js/vault.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/calendar.js"></script>
+<script src="js/lock.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
