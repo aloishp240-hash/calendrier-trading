@@ -160,11 +160,34 @@
   </main>
 
   <main class="tab-page wealth" data-tab="wealth" id="tabWealth" hidden>
+    <fieldset class="seg wealth-mode">
+      <legend class="sr-only">Affichage du patrimoine</legend>
+      <input type="radio" name="wmode" id="wmHistory" value="history" checked>
+      <label for="wmHistory">Historique</label>
+      <input type="radio" name="wmode" id="wmForecast" value="forecast">
+      <label for="wmForecast">Prévisions</label>
+    </fieldset>
+
+    <div class="wealth-view" id="wealthHistory">
     <section class="wealth-hero glass" aria-labelledby="wealthLabel">
       <div class="wealth-label" id="wealthLabel">Patrimoine total</div>
       <div class="wealth-total" id="wealthTotal">–</div>
       <div class="wealth-delta" id="wealthDelta"></div>
       <div class="chart" id="wealthChart"></div>
+      <div class="chart-controls" id="wealthChartControls">
+        <div class="chip-row" role="group" aria-label="Période du graphique">
+          <button class="chip" type="button" data-period="1">1 M</button>
+          <button class="chip" type="button" data-period="3">3 M</button>
+          <button class="chip" type="button" data-period="6">6 M</button>
+          <button class="chip" type="button" data-period="12">1 A</button>
+          <button class="chip" type="button" data-period="0">Tout</button>
+        </div>
+        <div class="chip-row" role="group" aria-label="Affichage du graphique">
+          <button class="chip" type="button" data-cmode="total">Total</button>
+          <button class="chip" type="button" data-cmode="stack">Par catégorie</button>
+        </div>
+        <div class="legend" id="wealthLegend" role="group" aria-label="Catégories affichées (toucher pour masquer ou afficher)"></div>
+      </div>
       <p class="ana-empty" id="wealthChartHint" hidden>La courbe d’évolution apparaîtra dès ta 2e mise à jour.</p>
       <p class="ana-empty" id="wealthEmpty">Ajoute tes comptes (banque, livrets, PEA…) ou importe-les depuis Finary.</p>
       <div class="wealth-actions">
@@ -178,6 +201,28 @@
       <ul class="alloc-list" id="wealthAlloc"></ul>
     </section>
     <div class="wealth-accounts" id="wealthAccounts"></div>
+    </div>
+
+    <div class="wealth-view" id="wealthForecast" hidden>
+      <section class="fc-hero glass" aria-labelledby="fcWhen">
+        <fieldset class="seg fc-horizons">
+          <legend class="sr-only">Horizon de la prévision</legend>
+          <input type="radio" name="fch" id="fch1" value="1"><label for="fch1">1 mois</label>
+          <input type="radio" name="fch" id="fch6" value="6"><label for="fch6">6 mois</label>
+          <input type="radio" name="fch" id="fch12" value="12"><label for="fch12">1 an</label>
+          <input type="radio" name="fch" id="fch60" value="60"><label for="fch60">5 ans</label>
+          <input type="radio" name="fch" id="fch120" value="120" checked><label for="fch120">10 ans</label>
+        </fieldset>
+        <div class="wealth-label" id="fcWhen"></div>
+        <div class="wealth-total" id="fcTotal">–</div>
+        <div class="fc-gain" id="fcGain"></div>
+        <div class="fc-range" id="fcRange"></div>
+        <div class="chart" id="fcChart"></div>
+        <label class="ai-switch fc-infl"><input type="checkbox" id="fcInflation"> <span>En euros d’aujourd’hui (inflation 2 %/an retirée)</span></label>
+      </section>
+      <div class="fc-accounts" id="fcAccounts"></div>
+      <p class="ai-disclaimer fc-note" id="fcNote"></p>
+    </div>
   </main>
 
   <main class="tab-page" data-tab="coach" id="tabCoach" hidden>
@@ -356,6 +401,45 @@
   </form>
 </dialog>
 
+<dialog class="sheet glass" id="fcSheet" aria-labelledby="fcSheetTitle">
+  <form class="sheet-form" id="fcForm" novalidate>
+    <div class="grabber" aria-hidden="true"></div>
+    <h2 id="fcSheetTitle"></h2>
+    <p class="sheet-sub" id="fcSheetSub">Hypothèses utilisées pour la prévision de ce compte</p>
+    <div class="chip-row fc-presets" id="fcPresets" hidden>
+      <button class="chip" type="button" data-preset="msci10"></button>
+      <button class="chip" type="button" data-preset="msci2000"></button>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="fcRate">Rendement (%/an)</label>
+        <input class="input" type="text" id="fcRate" inputmode="decimal" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="fcMonthly">Versement mensuel</label>
+        <div class="amount-wrap">
+          <input class="input" type="text" id="fcMonthly" inputmode="decimal" autocomplete="off" placeholder="0">
+          <span aria-hidden="true">€</span>
+        </div>
+      </div>
+    </div>
+    <div class="field">
+      <label for="fcCap">Plafond (optionnel)</label>
+      <div class="amount-wrap">
+        <input class="input" type="text" id="fcCap" inputmode="decimal" autocomplete="off" placeholder="aucun">
+        <span aria-hidden="true">€</span>
+      </div>
+    </div>
+    <label class="ai-switch fc-risk"><input type="checkbox" id="fcRisky"> <span>Placement en bourse : afficher une fourchette de risque</span></label>
+    <p class="form-error" id="fcError" aria-live="assertive"></p>
+    <div class="actions">
+      <button class="btn btn-ghost" type="button" id="fcReset">Par défaut</button>
+      <button class="btn btn-ghost" type="button" id="fcCancel">Annuler</button>
+      <button class="btn btn-primary" type="submit">Enregistrer</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog class="sheet glass" id="finarySheet" aria-labelledby="finaryTitle">
   <div class="sheet-form">
     <div class="grabber" aria-hidden="true"></div>
@@ -518,6 +602,7 @@
 <script src="js/ai-store.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/wealth-store.js"></script>
+<script src="js/forecast.js"></script>
 <script src="js/wealth.js"></script>
 <script src="js/lock.js"></script>
 <script src="js/app.js"></script>

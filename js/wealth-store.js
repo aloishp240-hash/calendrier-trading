@@ -23,6 +23,20 @@ TC.wealthStore = (function () {
   const round2 = (n) => Math.round(n * 100) / 100;
   const isDate = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
+  /* Hypothèses de prévision choisies par toi (null = valeurs par défaut) */
+  function cleanForecast(f) {
+    if (!f || typeof f !== 'object') return null;
+    const num = (v) => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? undefined : Number(v));
+    const out = {};
+    if (num(f.rate) !== undefined) out.rate = num(f.rate);
+    if (num(f.vol) !== undefined) out.vol = Math.max(0, num(f.vol));
+    if (num(f.monthly) !== undefined) out.monthly = Math.max(0, num(f.monthly));
+    if (f.cap === null) out.cap = null;
+    else if (num(f.cap) !== undefined) out.cap = Math.max(0, num(f.cap));
+    if (typeof f.preset === 'string' || f.preset === null) out.preset = f.preset;
+    return Object.keys(out).length ? out : null;
+  }
+
   function cleanAccount(id, a) {
     if (!a || typeof a !== 'object') return null;
     const updatedAt = Number(a.updatedAt) || 0;
@@ -38,6 +52,7 @@ TC.wealthStore = (function () {
       institution: a.institution ? String(a.institution).slice(0, 60) : null,
       rate: Number.isFinite(Number(a.rate)) && a.rate !== null && a.rate !== '' ? Number(a.rate) : null,
       finaryId: a.finaryId ? String(a.finaryId) : null,
+      forecast: cleanForecast(a.forecast),
       snapshots: [...snaps.values()].sort((x, y) => (x.d < y.d ? -1 : 1)).slice(-MAX_SNAPSHOTS),
       createdAt: Number(a.createdAt) || updatedAt,
       updatedAt
