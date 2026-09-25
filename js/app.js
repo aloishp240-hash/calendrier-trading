@@ -51,7 +51,7 @@
   };
 
   const DEFAULT_STATUS = 'Données chiffrées sur cet appareil';
-  const AUTO_LOCK_MS = 60000;         // reverrouille après 1 min en arrière-plan
+  const AUTO_LOCK_MS = 5 * 60000;     // reverrouille après 5 min en arrière-plan
   const finePointer = window.matchMedia('(pointer: fine)');
 
   /* ---------------- Thème clair / sombre ---------------- */
