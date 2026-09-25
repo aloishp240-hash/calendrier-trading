@@ -80,8 +80,8 @@
 <div class="app">
   <header class="topbar">
     <div class="brand">
-      <h1>Calendrier Trading</h1>
-      <p>Journal · Trading 212</p>
+      <h1 id="pageTitle">Journal</h1>
+      <p id="pageSub">Trading 212 · CFD</p>
     </div>
     <div class="top-actions">
       <button class="icon-btn glass" id="importBtn" type="button" aria-label="Importer un export CSV Trading 212">
@@ -98,7 +98,7 @@
     </div>
   </header>
 
-  <main class="layout">
+  <main class="layout tab-page" data-tab="journal" id="tabJournal">
     <nav class="month-nav glass" aria-label="Navigation entre les mois">
       <button class="nav-btn" id="prevBtn" type="button" aria-label="Mois précédent">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg>
@@ -159,80 +159,214 @@
     </section>
   </main>
 
-  <div class="sync-bar">
-    <button class="sync-pill glass" type="button" id="syncBtn">
-      <span class="sync-dot" id="syncDot" aria-hidden="true"></span>
-      <span id="syncLabel">Synchronisation</span>
-    </button>
-    <button class="sync-pill glass" type="button" id="backupPillBtn">Sauvegarde</button>
-  </div>
+  <main class="tab-page wealth" data-tab="wealth" id="tabWealth" hidden>
+    <section class="wealth-hero glass" aria-labelledby="wealthLabel">
+      <div class="wealth-label" id="wealthLabel">Patrimoine total</div>
+      <div class="wealth-total" id="wealthTotal">–</div>
+      <div class="wealth-delta" id="wealthDelta"></div>
+      <div class="chart" id="wealthChart"></div>
+      <p class="ana-empty" id="wealthChartHint" hidden>La courbe d’évolution apparaîtra dès ta 2e mise à jour.</p>
+      <p class="ana-empty" id="wealthEmpty">Ajoute tes comptes (banque, livrets, PEA…) ou importe-les depuis Finary.</p>
+      <div class="wealth-actions">
+        <button class="btn btn-primary" type="button" id="wealthAddBtn">Ajouter un compte</button>
+        <button class="btn btn-ghost" type="button" id="finaryImportBtn">Importer depuis Finary</button>
+        <input type="file" id="finaryInput" accept=".json,application/json" hidden>
+      </div>
+    </section>
+    <section class="wealth-alloc glass" id="wealthAllocPanel" aria-labelledby="allocTitle" hidden>
+      <h2 id="allocTitle">Répartition</h2>
+      <ul class="alloc-list" id="wealthAlloc"></ul>
+    </section>
+    <div class="wealth-accounts" id="wealthAccounts"></div>
+  </main>
+
+  <main class="tab-page" data-tab="coach" id="tabCoach" hidden>
+    <div class="coach-panel glass" id="aiPanel">
+      <div class="ai-layout">
+        <header class="ai-head">
+          <div class="ai-head-text">
+            <h2 id="aiTitle">Coach IA</h2>
+            <span class="ai-period" id="aiPeriod"></span>
+          </div>
+          <div class="ai-head-actions">
+            <button class="ai-head-btn" type="button" id="aiHistoryBtn">Historique</button>
+            <button class="ai-head-btn" type="button" id="aiNewBtn">Nouvelle</button>
+          </div>
+        </header>
+
+        <section class="ai-setup" id="aiSetup" hidden>
+          <p class="sync-text">Le coach utilise <strong>Gemini</strong> (Google), avec une clé API <strong>gratuite</strong>. En Europe, tes questions ne servent pas à améliorer les produits Google.</p>
+          <ol class="ai-steps">
+            <li>Ouvre <a id="aiKeyLink" target="_blank" rel="noopener">aistudio.google.com/apikey</a> avec ton compte Google.</li>
+            <li>Clique sur <strong>Create API key</strong>, puis copie la clé.</li>
+            <li>Colle-la ci-dessous. Elle est chiffrée dans l’appli et synchronisée avec ton autre appareil.</li>
+          </ol>
+          <div class="field">
+            <label for="aiKeyInput">Clé API Gemini</label>
+            <input class="input" type="password" id="aiKeyInput" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="AQ.… ou AIza…">
+          </div>
+          <button class="btn btn-primary btn-block" type="button" id="aiKeySave">Enregistrer la clé</button>
+        </section>
+
+        <section class="ai-chat" id="aiChat" hidden>
+          <div class="ai-messages" id="aiMessages" aria-live="polite"></div>
+          <div class="ai-suggestions" id="aiSuggestions"></div>
+          <div class="ai-composer">
+            <textarea class="input ai-input" id="aiInput" rows="1" placeholder="Pose ta question…" aria-label="Ta question"></textarea>
+            <button class="btn btn-primary ai-send" type="button" id="aiSend">Envoyer</button>
+          </div>
+          <div class="ai-options">
+            <label class="ai-switch"><input type="checkbox" id="aiDeep" checked> <span>Réflexion approfondie</span></label>
+            <button class="lock-link" type="button" id="aiKeyRemove">Supprimer la clé Gemini</button>
+          </div>
+        </section>
+
+        <section class="ai-history" id="aiHistory" hidden>
+          <h3 class="sheet-section-title">10 dernières conversations</h3>
+          <p class="sync-hint" id="aiHistoryEmpty">Aucune conversation pour l’instant.</p>
+          <ul class="ai-hist-list" id="aiHistoryList"></ul>
+        </section>
+
+        <p class="form-error" id="aiError" aria-live="assertive"></p>
+        <p class="sync-ok" id="aiOk" aria-live="polite"></p>
+
+        <footer class="ai-claude">
+          <button class="btn btn-ghost btn-block" type="button" id="aiClaudeBtn">Analyser avec Claude (copier le journal)</button>
+          <div id="aiClaudeHint" hidden>
+            <p class="sync-hint" id="aiClaudeStatus"></p>
+            <textarea class="input" id="aiClaudeText" rows="4" readonly hidden aria-label="Journal à copier pour Claude"></textarea>
+            <a class="btn btn-primary btn-block ai-claude-open" id="aiClaudeLink" target="_blank" rel="noopener">Ouvrir Claude</a>
+          </div>
+          <p class="ai-disclaimer">Analyse indicative, pas un conseil en investissement.</p>
+        </footer>
+      </div>
+    </div>
+  </main>
+
+  <main class="tab-page settings" data-tab="settings" id="tabSettings" hidden>
+    <section class="set-group glass" aria-labelledby="setData">
+      <h2 class="set-title" id="setData">Données</h2>
+      <button class="set-row" type="button" id="syncBtn">
+        <span class="set-main"><span class="set-name">Synchronisation</span><span class="set-sub" id="syncLabel">Synchronisation</span></span>
+        <span class="sync-dot" id="syncDot" aria-hidden="true"></span><span class="set-chev" aria-hidden="true">›</span>
+      </button>
+      <button class="set-row" type="button" id="backupPillBtn">
+        <span class="set-main"><span class="set-name">Sauvegarde et export</span><span class="set-sub">Fichier chiffré, restauration, export Excel</span></span>
+        <span class="set-chev" aria-hidden="true">›</span>
+      </button>
+    </section>
+
+    <section class="set-group glass" aria-labelledby="setSecurity">
+      <h2 class="set-title" id="setSecurity">Sécurité</h2>
+      <button class="set-row" type="button" id="bioSetupBtn" hidden></button>
+      <div class="set-row is-static">
+        <span class="set-main"><span class="set-name">Verrouillage automatique</span><span class="set-sub">Après 5 minutes hors de l’appli</span></span>
+      </div>
+      <button class="set-row" type="button" id="lockNowBtn">
+        <span class="set-main"><span class="set-name">Verrouiller maintenant</span></span>
+        <span class="set-chev" aria-hidden="true">›</span>
+      </button>
+    </section>
+
+    <section class="set-group glass" aria-labelledby="setLook">
+      <h2 class="set-title" id="setLook">Apparence</h2>
+      <fieldset class="seg theme-seg">
+        <legend class="sr-only">Thème</legend>
+        <input type="radio" name="theme" id="themeSystem" value="system">
+        <label for="themeSystem">Système</label>
+        <input type="radio" name="theme" id="themeLight" value="light">
+        <label for="themeLight">Clair</label>
+        <input type="radio" name="theme" id="themeDark" value="dark">
+        <label for="themeDark">Sombre</label>
+      </fieldset>
+    </section>
+
+    <p class="footnote">Calendrier Trading · tes données sont chiffrées sur tes appareils.</p>
+  </main>
+
   <p class="footnote" id="status" role="status"></p>
-  <p class="footnote"><button class="lock-link" type="button" id="bioSetupBtn" hidden></button></p>
 </div>
 
-<button class="ai-fab glass" type="button" id="aiFab" aria-label="Ouvrir le coach IA">
-  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 13.9 9a2 2 0 0 0 1.2 1.2l5.4 1.8-5.4 1.8a2 2 0 0 0-1.2 1.2L12 20.5l-1.9-5.5a2 2 0 0 0-1.2-1.2L3.5 12l5.4-1.8A2 2 0 0 0 10.1 9Z"/></svg>
-</button>
+<nav class="tabbar glass" id="tabbar" aria-label="Sections de l’appli">
+  <span class="tab-indicator" id="tabIndicator" aria-hidden="true"></span>
+  <button class="tab" type="button" data-tab-btn="journal" aria-current="page">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+    <span>Journal</span>
+  </button>
+  <button class="tab" type="button" data-tab-btn="wealth">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5h16M6 16.5v-5M10 16.5V8M14 16.5v-6M18 16.5V5"/></svg>
+    <span>Patrimoine</span>
+  </button>
+  <button class="tab" type="button" data-tab-btn="coach">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 13.9 9a2 2 0 0 0 1.2 1.2l5.4 1.8-5.4 1.8a2 2 0 0 0-1.2 1.2L12 20.5l-1.9-5.5a2 2 0 0 0-1.2-1.2L3.5 12l5.4-1.8A2 2 0 0 0 10.1 9Z"/></svg>
+    <span>Coach</span>
+  </button>
+  <button class="tab" type="button" data-tab-btn="settings">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4.9a7.7 7.7 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.4A7.7 7.7 0 0 0 7 6.4l-2.4-.9-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-.9a7.7 7.7 0 0 0 2.6 1.5l.4 2.4h4l.4-2.4a7.7 7.7 0 0 0 2.6-1.5l2.4.9 2-3.4Z"/></svg>
+    <span>Réglages</span>
+  </button>
+</nav>
 
-<dialog class="sheet glass ai-sheet" id="aiSheet" aria-labelledby="aiTitle">
-  <div class="ai-layout">
-    <header class="ai-head">
-      <div class="ai-head-text">
-        <h2 id="aiTitle">Coach IA</h2>
-        <span class="ai-period" id="aiPeriod"></span>
-      </div>
-      <div class="ai-head-actions">
-        <button class="ai-head-btn" type="button" id="aiHistoryBtn">Historique</button>
-        <button class="ai-head-btn" type="button" id="aiNewBtn">Nouvelle</button>
-        <button class="ai-head-btn ai-close" type="button" id="aiClose" aria-label="Fermer">×</button>
-      </div>
-    </header>
-
-    <section class="ai-setup" id="aiSetup" hidden>
-      <p class="sync-text">Le coach utilise <strong>Gemini</strong> (Google), avec une clé API <strong>gratuite</strong>. En Europe, tes questions ne servent pas à améliorer les produits Google.</p>
-      <ol class="ai-steps">
-        <li>Ouvre <a id="aiKeyLink" target="_blank" rel="noopener">aistudio.google.com/apikey</a> avec ton compte Google.</li>
-        <li>Clique sur <strong>Create API key</strong>, puis copie la clé.</li>
-        <li>Colle-la ci-dessous. Elle est chiffrée dans l’appli et synchronisée avec ton autre appareil.</li>
-      </ol>
+<dialog class="sheet glass" id="accountSheet" aria-labelledby="accountTitle">
+  <form class="sheet-form" id="accountForm" novalidate>
+    <div class="grabber" aria-hidden="true"></div>
+    <h2 id="accountTitle"></h2>
+    <p class="sheet-sub" id="accountSub"></p>
+    <div class="field">
+      <label for="accName">Nom du compte</label>
+      <input class="input" type="text" id="accName" autocomplete="off" placeholder="ex : Livret A">
+    </div>
+    <div class="field-row">
       <div class="field">
-        <label for="aiKeyInput">Clé API Gemini</label>
-        <input class="input" type="password" id="aiKeyInput" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="AQ.… ou AIza…">
+        <label for="accCat">Catégorie</label>
+        <select class="input" id="accCat"></select>
       </div>
-      <button class="btn btn-primary btn-block" type="button" id="aiKeySave">Enregistrer la clé</button>
-    </section>
-
-    <section class="ai-chat" id="aiChat" hidden>
-      <div class="ai-messages" id="aiMessages" aria-live="polite"></div>
-      <div class="ai-suggestions" id="aiSuggestions"></div>
-      <div class="ai-composer">
-        <textarea class="input ai-input" id="aiInput" rows="1" placeholder="Pose ta question…" aria-label="Ta question"></textarea>
-        <button class="btn btn-primary ai-send" type="button" id="aiSend">Envoyer</button>
+      <div class="field">
+        <label for="accRate">Taux (%/an, optionnel)</label>
+        <input class="input" type="text" id="accRate" inputmode="decimal" autocomplete="off" placeholder="ex : 2,5">
       </div>
-      <div class="ai-options">
-        <label class="ai-switch"><input type="checkbox" id="aiDeep" checked> <span>Réflexion approfondie</span></label>
-        <button class="lock-link" type="button" id="aiKeyRemove">Supprimer la clé Gemini</button>
+    </div>
+    <div class="field">
+      <label for="accInst">Établissement (optionnel)</label>
+      <input class="input" type="text" id="accInst" autocomplete="off" placeholder="ex : LCL, Fortuneo">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="accBalance">Nouveau solde</label>
+        <div class="amount-wrap">
+          <input class="input input-amount" type="text" id="accBalance" inputmode="decimal" autocomplete="off" placeholder="0,00">
+          <span aria-hidden="true">€</span>
+        </div>
       </div>
-    </section>
-
-    <section class="ai-history" id="aiHistory" hidden>
-      <h3 class="sheet-section-title">10 dernières conversations</h3>
-      <p class="sync-hint" id="aiHistoryEmpty">Aucune conversation pour l’instant.</p>
-      <ul class="ai-hist-list" id="aiHistoryList"></ul>
-    </section>
-
-    <p class="form-error" id="aiError" aria-live="assertive"></p>
-    <p class="sync-ok" id="aiOk" aria-live="polite"></p>
-
-    <footer class="ai-claude">
-      <button class="btn btn-ghost btn-block" type="button" id="aiClaudeBtn">Analyser avec Claude (copier le journal)</button>
-      <div id="aiClaudeHint" hidden>
-        <p class="sync-hint" id="aiClaudeStatus"></p>
-        <textarea class="input" id="aiClaudeText" rows="4" readonly hidden aria-label="Journal à copier pour Claude"></textarea>
-        <a class="btn btn-primary btn-block ai-claude-open" id="aiClaudeLink" target="_blank" rel="noopener">Ouvrir Claude</a>
+      <div class="field">
+        <label for="accDate">À la date du</label>
+        <input class="input" type="date" id="accDate">
       </div>
-      <p class="ai-disclaimer">Analyse indicative, pas un conseil en investissement.</p>
-    </footer>
+    </div>
+    <div id="accHistoryWrap" hidden>
+      <h3 class="sheet-section-title">Historique</h3>
+      <ul class="acc-hist" id="accHistory"></ul>
+    </div>
+    <p class="form-error" id="accError" aria-live="assertive"></p>
+    <div class="actions">
+      <button class="btn btn-ghost" type="button" id="accCancel">Annuler</button>
+      <button class="btn btn-danger" type="button" id="accDelete">Supprimer</button>
+      <button class="btn btn-primary" type="submit">Enregistrer</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="sheet glass" id="finarySheet" aria-labelledby="finaryTitle">
+  <div class="sheet-form">
+    <div class="grabber" aria-hidden="true"></div>
+    <h2 id="finaryTitle">Importer depuis Finary</h2>
+    <p class="sheet-sub" id="finaryFile"></p>
+    <div class="fin-list" id="finarySummary"></div>
+    <p class="import-warning" id="finaryWarning"></p>
+    <div class="actions">
+      <button class="btn btn-ghost" type="button" id="finaryCancel">Annuler</button>
+      <button class="btn btn-primary" type="button" id="finaryConfirm">Importer</button>
+    </div>
   </div>
 </dialog>
 
@@ -383,6 +517,8 @@
 <script src="js/ai-context.js"></script>
 <script src="js/ai-store.js"></script>
 <script src="js/ai.js"></script>
+<script src="js/wealth-store.js"></script>
+<script src="js/wealth.js"></script>
 <script src="js/lock.js"></script>
 <script src="js/app.js"></script>
 </body>

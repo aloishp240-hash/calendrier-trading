@@ -19,6 +19,7 @@ TC.storage = (function () {
     seed: 'ct.seedVersion',
     theme: 'ct.theme',
     view: 'ct.view',
+    tab: 'ct.tab',
     securePrefix: 'ct.sec.'     // réglages sensibles chiffrés (ex. synchro)
   };
 
@@ -223,7 +224,14 @@ TC.storage = (function () {
       const t = read(KEYS.theme);
       return t === 'light' || t === 'dark' ? t : null;
     },
-    setTheme(theme) { write(KEYS.theme, theme); },
+    /* 'light' | 'dark' ; toute autre valeur = suivre l'appareil */
+    setTheme(theme) {
+      if (theme === 'light' || theme === 'dark') write(KEYS.theme, theme);
+      else removeKey(KEYS.theme);
+    },
+
+    getLastTab() { return read(KEYS.tab) || 'journal'; },
+    setLastTab(tab) { write(KEYS.tab, tab); },
 
     getView() { return read(KEYS.view) === 'week' ? 'week' : 'month'; },
     setView(view) { write(KEYS.view, view); }

@@ -120,25 +120,34 @@ TC.sync = (function () {
     return ka.every((k) => b[k] && b[k].updatedAt === a[k].updatedAt && !!b[k].deleted === !!a[k].deleted);
   }
 
-  /* Contenu du fichier en ligne. Version 2 : { v: 2, days, ai } (trades + coach IA).
+  /* Contenu du fichier en ligne. Version 2 : { v: 2, days, ai, wealth } (trades, coach IA, patrimoine).
      Version 1 (ancienne) : directement la liste des jours. */
   function splitPayload(map) {
     if (!map) return { days: null, ai: null };
-    if (map.v === 2) return { days: map.days || {}, ai: map.ai || null };
-    return { days: map, ai: null };
+    if (map.v === 2) return { days: map.days || {}, ai: map.ai || null, wealth: map.wealth || null };
+    return { days: map, ai: null, wealth: null };
   }
 
   async function runSync() {
     const ai = TC.aiStore;
+    const wealth = TC.wealthStore;
     for (let attempt = 0; attempt < 3; attempt++) {
       const remote = await pull(config, syncKey);
       const theirs = splitPayload(remote.map);
       let changedHere = theirs.days ? await storage.mergeRemote(theirs.days) : false;
       if (theirs.ai && ai && await ai.mergeRemote(theirs.ai)) changedHere = true;
+      if (theirs.wealth && wealth && await wealth.mergeRemote(theirs.wealth)) changedHere = true;
 
-      const merged = { v: 2, days: await storage.exportAll(), ai: ai ? await ai.exportAll() : null };
+      const merged = {
+        v: 2,
+        days: await storage.exportAll(),
+        ai: ai ? await ai.exportAll() : null,
+        wealth: wealth ? await wealth.exportAll() : null
+      };
       const upToDate = remote.map && remote.map.v === 2
-        && sameMaps(merged.days, theirs.days) && (!ai || ai.same(merged.ai, theirs.ai));
+        && sameMaps(merged.days, theirs.days)
+        && (!ai || ai.same(merged.ai, theirs.ai))
+        && (!wealth || wealth.same(merged.wealth, theirs.wealth));
       if (!upToDate) {
         const pushed = await push(config, syncKey, merged, remote.sha);
         if (!pushed) continue;               // conflit : on recommence avec la version à jour

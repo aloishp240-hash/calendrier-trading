@@ -416,12 +416,12 @@ TC.ai = (function () {
     }
   }
 
+  /* Appelé quand on arrive sur l'onglet Coach */
   function open() {
+    if (controller) return;                       // réponse en cours : on ne touche à rien
     setError('');
     els.okMsg.textContent = '';
     els.claudeHint.hidden = true;
-    els.sheet.classList.remove('closing');
-    els.sheet.showModal();
     els.period.textContent = periodLabel();
     aiStore.getKey().then((key) => {
       // Nouvelle période affichée depuis la dernière conversation : on repart de zéro
@@ -434,7 +434,6 @@ TC.ai = (function () {
   function lock() {
     if (controller) controller.abort();
     chat = null;
-    if (els.sheet && els.sheet.open) els.sheet.close();
     if (els.messages) els.messages.replaceChildren();
     if (els.historyList) els.historyList.replaceChildren();
     if (els.claudeText) els.claudeText.value = '';
@@ -443,9 +442,9 @@ TC.ai = (function () {
   function init(options) {
     getPeriod = options.getPeriod;
     Object.assign(els, {
-      sheet: $('aiSheet'), period: $('aiPeriod'), setup: $('aiSetup'), chatView: $('aiChat'),
+      period: $('aiPeriod'), setup: $('aiSetup'), chatView: $('aiChat'),
       history: $('aiHistory'), historyList: $('aiHistoryList'), historyEmpty: $('aiHistoryEmpty'),
-      historyBtn: $('aiHistoryBtn'), newBtn: $('aiNewBtn'), closeBtn: $('aiClose'),
+      historyBtn: $('aiHistoryBtn'), newBtn: $('aiNewBtn'),
       messages: $('aiMessages'), suggestions: $('aiSuggestions'), input: $('aiInput'), send: $('aiSend'),
       deep: $('aiDeep'), error: $('aiError'), okMsg: $('aiOk'),
       keyInput: $('aiKeyInput'), keySave: $('aiKeySave'), keyRemove: $('aiKeyRemove'), keyLink: $('aiKeyLink'),
@@ -472,8 +471,6 @@ TC.ai = (function () {
     els.keySave.addEventListener('click', saveKey);
     els.keyRemove.addEventListener('click', removeKey);
     els.claudeBtn.addEventListener('click', copyForClaude);
-    els.closeBtn.addEventListener('click', () => options.close(els.sheet));
-    els.sheet.addEventListener('cancel', (e) => { e.preventDefault(); if (!controller) options.close(els.sheet); });
   }
 
   return {

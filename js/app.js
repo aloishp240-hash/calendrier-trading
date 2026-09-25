@@ -108,6 +108,8 @@
 
   function updateThemeUI() {
     const t = effectiveTheme();
+    const choice = root.dataset.theme || 'system';
+    ['System', 'Light', 'Dark'].forEach((n) => { const r = $('theme' + n); if (r) r.checked = r.value === choice; });
     els.themeBtn.dataset.current = t;
     els.themeBtn.setAttribute('aria-label', t === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre');
     document.querySelector('meta[name="theme-color"]').setAttribute('content', THEME_COLORS[t]);
@@ -121,6 +123,53 @@
     updateThemeUI();
     clearTimeout(themeTimer);
     themeTimer = setTimeout(() => root.classList.remove('theme-switching'), 450);
+  }
+
+  /* Choix dans Réglages : « system » suit le réglage de l'appareil */
+  function setThemeChoice(choice) {
+    root.classList.add('theme-switching');
+    if (choice === 'light' || choice === 'dark') root.dataset.theme = choice;
+    else delete root.dataset.theme;
+    storage.setTheme(choice);
+    updateThemeUI();
+    clearTimeout(themeTimer);
+    themeTimer = setTimeout(() => root.classList.remove('theme-switching'), 450);
+  }
+
+  /* ---------------- Onglets ---------------- */
+  const TABS = {
+    journal: { title: 'Journal', sub: 'Trading 212 · CFD' },
+    wealth: { title: 'Patrimoine', sub: 'Banques, livrets, PEA, assurance vie' },
+    coach: { title: 'Coach', sub: 'Analyse de tes trades par l’IA' },
+    settings: { title: 'Réglages', sub: 'Données, sécurité, apparence' }
+  };
+
+  function moveIndicator() {
+    const active = document.querySelector('.tab[aria-current="page"]');
+    const ind = $('tabIndicator');
+    if (!active || !ind) return;
+    ind.style.width = active.offsetWidth + 'px';
+    ind.style.transform = `translateX(${active.offsetLeft}px)`;
+  }
+
+  function setTab(tab) {
+    if (!TABS[tab]) tab = 'journal';
+    state.tab = tab;
+    document.querySelectorAll('.tab-page').forEach((p) => { p.hidden = p.dataset.tab !== tab; });
+    document.querySelectorAll('.tab').forEach((b) => {
+      if (b.dataset.tabBtn === tab) b.setAttribute('aria-current', 'page');
+      else b.removeAttribute('aria-current');
+    });
+    $('pageTitle').textContent = TABS[tab].title;
+    $('pageSub').textContent = TABS[tab].sub;
+    els.importBtn.hidden = tab !== 'journal';
+    document.body.dataset.tab = tab;
+    storage.setLastTab(tab);
+    moveIndicator();
+    if (tab === 'journal') render();           // redessine la courbe à la bonne largeur
+    if (tab === 'wealth') TC.wealth.render();
+    if (tab === 'coach') TC.ai.open();
+    window.scrollTo({ top: 0 });
   }
 
   /* ---------------- Affichage ---------------- */
@@ -677,12 +726,25 @@
     els.restorePw.value = '';
   }
 
+  /* Tout ce qui est sauvegardé : trades, coach IA, patrimoine (même format que la synchro) */
+  async function fullPayload() {
+    return { v: 2, days: await storage.exportAll(), ai: await TC.aiStore.exportAll(), wealth: await TC.wealthStore.exportAll() };
+  }
+  /* Accepte l'ancien format (jours seuls) et le nouveau */
+  async function mergePayload(map) {
+    if (!map || map.v !== 2) return storage.mergeRemote(map);
+    let changed = await storage.mergeRemote(map.days || {});
+    if (map.ai && await TC.aiStore.mergeRemote(map.ai)) changed = true;
+    if (map.wealth && await TC.wealthStore.mergeRemote(map.wealth)) changed = true;
+    return changed;
+  }
+
   function makeBackup() {
     return withBusy(els.backupMakeBtn, async () => {
       const pw = els.backupPw.value;
       if (pw.length < TC.backup.MIN_PASSWORD) throw new Error(`Mot de passe trop court (${TC.backup.MIN_PASSWORD} caractères minimum).`);
       if (pw !== els.backupPw2.value) throw new Error('Les deux mots de passe sont différents.');
-      pendingFile = await TC.backup.createEncrypted(await storage.exportAll(), pw);
+      pendingFile = await TC.backup.createEncrypted(await fullPayload(), pw);
       els.backupPw.value = '';
       els.backupPw2.value = '';
       els.backupForm.hidden = true;
@@ -720,7 +782,7 @@
     return withBusy(els.restoreGoBtn, async () => {
       if (!pendingRestore) return;
       const map = await TC.backup.readEncrypted(pendingRestore, els.restorePw.value);
-      const changed = await storage.mergeRemote(map);
+      const changed = await mergePayload(map);
       els.restorePw.value = '';
       els.restoreForm.hidden = true;
       pendingRestore = null;
@@ -792,7 +854,15 @@
     sync.onRemoteChange(() => TC.ai.onRemoteChange());
     TC.aiStore.onChange(() => sync.schedule());
     TC.ai.init({ getPeriod: currentPeriod, close: (dialog) => closeDialog(dialog) });
-    $('aiFab').addEventListener('click', () => TC.ai.open());
+    TC.wealth.init({ close: (dialog) => closeDialog(dialog), status: (msg) => setStatus(msg) });
+    TC.wealthStore.onChange(() => sync.schedule());
+    sync.onRemoteChange(() => { if (state.tab === 'wealth') TC.wealth.render(); });
+
+    // Onglets
+    document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tabBtn)));
+    window.addEventListener('resize', moveIndicator);
+    $('lockNowBtn').addEventListener('click', lockApp);
+    document.querySelectorAll('input[name="theme"]').forEach((r) => r.addEventListener('change', () => setThemeChoice(r.value)));
     storage.onLocalChange(() => sync.schedule());
     window.addEventListener('online', () => sync.schedule(200));
     setInterval(renderSyncStatus, 60000);          // « il y a 3 minutes » reste à jour
@@ -863,7 +933,7 @@
       state.entries = {};
       setStatus('Impossible de lire les données de cet appareil.', true);
     }
-    render();
+    setTab(storage.getLastTab());
     refreshBioButton();
     renderSyncStatus();
 
@@ -883,6 +953,8 @@
     resetBackupUI();
     TC.ai.lock();
     TC.aiStore.lock();
+    TC.wealth.lock();
+    TC.wealthStore.lock();
     sync.lock();
     state.entries = {};
     state.selected = null;
