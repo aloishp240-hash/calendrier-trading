@@ -170,6 +170,72 @@
   <p class="footnote"><button class="lock-link" type="button" id="bioSetupBtn" hidden></button></p>
 </div>
 
+<button class="ai-fab glass" type="button" id="aiFab" aria-label="Ouvrir le coach IA">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 13.9 9a2 2 0 0 0 1.2 1.2l5.4 1.8-5.4 1.8a2 2 0 0 0-1.2 1.2L12 20.5l-1.9-5.5a2 2 0 0 0-1.2-1.2L3.5 12l5.4-1.8A2 2 0 0 0 10.1 9Z"/></svg>
+</button>
+
+<dialog class="sheet glass ai-sheet" id="aiSheet" aria-labelledby="aiTitle">
+  <div class="ai-layout">
+    <header class="ai-head">
+      <div class="ai-head-text">
+        <h2 id="aiTitle">Coach IA</h2>
+        <span class="ai-period" id="aiPeriod"></span>
+      </div>
+      <div class="ai-head-actions">
+        <button class="ai-head-btn" type="button" id="aiHistoryBtn">Historique</button>
+        <button class="ai-head-btn" type="button" id="aiNewBtn">Nouvelle</button>
+        <button class="ai-head-btn ai-close" type="button" id="aiClose" aria-label="Fermer">×</button>
+      </div>
+    </header>
+
+    <section class="ai-setup" id="aiSetup" hidden>
+      <p class="sync-text">Le coach utilise <strong>Gemini</strong> (Google), avec une clé API <strong>gratuite</strong>. En Europe, tes questions ne servent pas à améliorer les produits Google.</p>
+      <ol class="ai-steps">
+        <li>Ouvre <a id="aiKeyLink" target="_blank" rel="noopener">aistudio.google.com/apikey</a> avec ton compte Google.</li>
+        <li>Clique sur <strong>Create API key</strong>, puis copie la clé.</li>
+        <li>Colle-la ci-dessous. Elle est chiffrée dans l’appli et synchronisée avec ton autre appareil.</li>
+      </ol>
+      <div class="field">
+        <label for="aiKeyInput">Clé API Gemini</label>
+        <input class="input" type="password" id="aiKeyInput" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="AIza…">
+      </div>
+      <button class="btn btn-primary btn-block" type="button" id="aiKeySave">Enregistrer la clé</button>
+    </section>
+
+    <section class="ai-chat" id="aiChat" hidden>
+      <div class="ai-messages" id="aiMessages" aria-live="polite"></div>
+      <div class="ai-suggestions" id="aiSuggestions"></div>
+      <div class="ai-composer">
+        <textarea class="input ai-input" id="aiInput" rows="1" placeholder="Pose ta question…" aria-label="Ta question"></textarea>
+        <button class="btn btn-primary ai-send" type="button" id="aiSend">Envoyer</button>
+      </div>
+      <div class="ai-options">
+        <label class="ai-switch"><input type="checkbox" id="aiDeep" checked> <span>Réflexion approfondie</span></label>
+        <button class="lock-link" type="button" id="aiKeyRemove">Supprimer la clé Gemini</button>
+      </div>
+    </section>
+
+    <section class="ai-history" id="aiHistory" hidden>
+      <h3 class="sheet-section-title">10 dernières conversations</h3>
+      <p class="sync-hint" id="aiHistoryEmpty">Aucune conversation pour l’instant.</p>
+      <ul class="ai-hist-list" id="aiHistoryList"></ul>
+    </section>
+
+    <p class="form-error" id="aiError" aria-live="assertive"></p>
+    <p class="sync-ok" id="aiOk" aria-live="polite"></p>
+
+    <footer class="ai-claude">
+      <button class="btn btn-ghost btn-block" type="button" id="aiClaudeBtn">Analyser avec Claude (copier le journal)</button>
+      <div id="aiClaudeHint" hidden>
+        <p class="sync-hint" id="aiClaudeStatus"></p>
+        <textarea class="input" id="aiClaudeText" rows="4" readonly hidden aria-label="Journal à copier pour Claude"></textarea>
+        <a class="btn btn-primary btn-block ai-claude-open" id="aiClaudeLink" target="_blank" rel="noopener">Ouvrir Claude</a>
+      </div>
+      <p class="ai-disclaimer">Analyse indicative, pas un conseil en investissement.</p>
+    </footer>
+  </div>
+</dialog>
+
 <dialog class="sheet glass" id="syncSheet" aria-labelledby="syncTitle">
   <div class="sheet-form">
     <div class="grabber" aria-hidden="true"></div>
@@ -314,6 +380,9 @@
 <script src="js/sync.js"></script>
 <script src="js/backup.js"></script>
 <script src="js/analysis.js"></script>
+<script src="js/ai-context.js"></script>
+<script src="js/ai-store.js"></script>
+<script src="js/ai.js"></script>
 <script src="js/lock.js"></script>
 <script src="js/app.js"></script>
 </body>

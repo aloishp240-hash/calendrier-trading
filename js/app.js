@@ -738,6 +738,20 @@
     if (result !== 'cancelled') els.syncOk.textContent = `Export CSV créé (${file.name}).`;
   }
 
+  /* ---------------- Coach IA ---------------- */
+  /* Période affichée, pour le coach et la copie vers Claude */
+  function currentPeriod() {
+    const isWeek = state.view === 'week';
+    const view = isWeek
+      ? cal.buildWeek(state.weekStart, state.entries)
+      : cal.buildMonth(state.year, state.month, state.entries);
+    const d = state.weekStart;
+    const key = isWeek
+      ? `w${cal.dateKey(d.getFullYear(), d.getMonth(), d.getDate())}`
+      : `m${state.year}-${state.month + 1}`;
+    return { view, isWeek, key };
+  }
+
   /* ---------------- Événements ---------------- */
   function bindEvents() {
     els.themeBtn.addEventListener('click', toggleTheme);
@@ -775,6 +789,10 @@
     els.csvExportBtn.addEventListener('click', exportCSV);
     sync.onStatus(renderSyncStatus);
     sync.onRemoteChange(reloadFromStorage);
+    sync.onRemoteChange(() => TC.ai.onRemoteChange());
+    TC.aiStore.onChange(() => sync.schedule());
+    TC.ai.init({ getPeriod: currentPeriod, close: (dialog) => closeDialog(dialog) });
+    $('aiFab').addEventListener('click', () => TC.ai.open());
     storage.onLocalChange(() => sync.schedule());
     window.addEventListener('online', () => sync.schedule(200));
     setInterval(renderSyncStatus, 60000);          // « il y a 3 minutes » reste à jour
@@ -863,6 +881,8 @@
     if (els.syncSheet.open) els.syncSheet.close();
     pendingImport = null;
     resetBackupUI();
+    TC.ai.lock();
+    TC.aiStore.lock();
     sync.lock();
     state.entries = {};
     state.selected = null;

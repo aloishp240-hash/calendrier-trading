@@ -13,7 +13,7 @@ TC.sync = (function () {
   'use strict';
 
   const { storage } = TC;
-  const API = 'https://api.github.com';
+  let apiBase = 'https://api.github.com';     // modifiable uniquement pour les tests (_setApiBase)
   const REPO = 'calendrier-trading-donnees';
   const FILE = 'calendrier.enc.json';
   const CONFIG_NAME = 'sync';
@@ -67,7 +67,7 @@ TC.sync = (function () {
   async function api(cfg, path, options = {}) {
     let res;
     try {
-      res = await fetch(API + path, {
+      res = await fetch(apiBase + path, {
         ...options,
         cache: 'no-store',
         headers: {
@@ -120,12 +120,26 @@ TC.sync = (function () {
     return ka.every((k) => b[k] && b[k].updatedAt === a[k].updatedAt && !!b[k].deleted === !!a[k].deleted);
   }
 
+  /* Contenu du fichier en ligne. Version 2 : { v: 2, days, ai } (trades + coach IA).
+     Version 1 (ancienne) : directement la liste des jours. */
+  function splitPayload(map) {
+    if (!map) return { days: null, ai: null };
+    if (map.v === 2) return { days: map.days || {}, ai: map.ai || null };
+    return { days: map, ai: null };
+  }
+
   async function runSync() {
+    const ai = TC.aiStore;
     for (let attempt = 0; attempt < 3; attempt++) {
       const remote = await pull(config, syncKey);
-      const changedHere = remote.map ? await storage.mergeRemote(remote.map) : false;
-      const merged = await storage.exportAll();
-      if (!remote.map || !sameMaps(merged, remote.map)) {
+      const theirs = splitPayload(remote.map);
+      let changedHere = theirs.days ? await storage.mergeRemote(theirs.days) : false;
+      if (theirs.ai && ai && await ai.mergeRemote(theirs.ai)) changedHere = true;
+
+      const merged = { v: 2, days: await storage.exportAll(), ai: ai ? await ai.exportAll() : null };
+      const upToDate = remote.map && remote.map.v === 2
+        && sameMaps(merged.days, theirs.days) && (!ai || ai.same(merged.ai, theirs.ai));
+      if (!upToDate) {
         const pushed = await push(config, syncKey, merged, remote.sha);
         if (!pushed) continue;               // conflit : on recommence avec la version à jour
       }
@@ -255,6 +269,9 @@ TC.sync = (function () {
       await self.syncNow();
       if (state.status === 'error') throw new SyncError(state.error, 'first-sync');
     },
+
+    /* Tests uniquement : faire parler la synchro à un faux GitHub local */
+    _setApiBase(url) { apiBase = url; },
 
     pairingCode() {
       if (!config) throw new SyncError('Synchro non configurée.', 'off');
