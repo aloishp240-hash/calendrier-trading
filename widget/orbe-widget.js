@@ -129,6 +129,31 @@ const eur = (n, cents) => {
 };
 const signed = (n, cents) => (n > 0 ? '+' : '') + eur(n, cents);
 
+/* ---------------- Stockage de la configuration ----------------
+   Trousseau (Keychain) + copie dans un fichier local de Scriptable : iOS
+   verrouille le trousseau quand le téléphone est verrouillé, alors que les
+   widgets de l'écran d'accueil se rafraîchissent aussi à ce moment-là. Le fichier
+   reste sur l'iPhone (pas iCloud), protégé par le chiffrement d'iOS. */
+function localFile(key) {
+  const fm = FileManager.local();
+  return { fm, path: fm.joinPath(fm.documentsDirectory(), `${key}.json`) };
+}
+const store = {
+  get(key) {
+    try { if (Keychain.contains(key)) return Keychain.get(key); } catch (e) { /* trousseau indisponible */ }
+    try { const { fm, path } = localFile(key); if (fm.fileExists(path)) return fm.readString(path); } catch (e) { /* rien */ }
+    return null;
+  },
+  set(key, value) {
+    try { Keychain.set(key, value); } catch (e) { /* on garde au moins le fichier */ }
+    try { const { fm, path } = localFile(key); fm.writeString(path, value); } catch (e) { /* rien */ }
+  },
+  remove(key) {
+    try { if (Keychain.contains(key)) Keychain.remove(key); } catch (e) { /* rien */ }
+    try { const { fm, path } = localFile(key); if (fm.fileExists(path)) fm.remove(path); } catch (e) { /* rien */ }
+  }
+};
+
 /* ---------------- Données ---------------- */
 async function fetchSummary(cfg) {
   const req = new Request(`https://api.github.com/repos/${cfg.o}/${cfg.r}/contents/${FILE}`);
@@ -143,15 +168,17 @@ async function fetchSummary(cfg) {
 }
 
 async function loadData() {
-  const cfg = Keychain.contains(CONFIG_KEY) ? JSON.parse(Keychain.get(CONFIG_KEY)) : null;
+  const raw = store.get(CONFIG_KEY);
+  const cfg = raw ? JSON.parse(raw) : null;
   if (!cfg) return { state: 'setup' };
   try {
     const data = await fetchSummary(cfg);
-    Keychain.set(CACHE_KEY, JSON.stringify({ data, at: Date.now() }));
+    store.set(CACHE_KEY, JSON.stringify({ data, at: Date.now() }));
     return { state: 'ok', data };
   } catch (e) {
-    if (Keychain.contains(CACHE_KEY)) {
-      const c = JSON.parse(Keychain.get(CACHE_KEY));
+    const cached = store.get(CACHE_KEY);
+    if (cached) {
+      const c = JSON.parse(cached);
       return { state: 'ok', data: c.data, offline: true };
     }
     return { state: 'error', message: e.message || String(e) };
@@ -261,7 +288,7 @@ function build(result, family) {
   const w = new ListWidget();
   background(w);
   w.url = APP_URL;
-  w.refreshAfterDate = new Date(Date.now() + 30 * 60 * 1000);
+  w.refreshAfterDate = new Date(Date.now() + (result.state === 'ok' && !result.offline ? 30 : 5) * 60 * 1000);
   w.setPadding(14, 14, 12, 14);
   if (result.state !== 'ok') {
     text(w, 'ORBE', 11, C.muted, 'semi');
@@ -321,8 +348,8 @@ async function setup() {
   a.addCancelAction('Annuler');
   if ((await a.presentAlert()) === -1) return false;
   const cfg = parsePairing(a.textFieldValue(0));
-  Keychain.set(CONFIG_KEY, JSON.stringify(cfg));
-  if (Keychain.contains(CACHE_KEY)) Keychain.remove(CACHE_KEY);
+  store.set(CONFIG_KEY, JSON.stringify(cfg));
+  store.remove(CACHE_KEY);
   return true;
 }
 
@@ -332,7 +359,7 @@ async function main() {
     Script.complete();
     return;
   }
-  const configured = Keychain.contains(CONFIG_KEY);
+  const configured = !!store.get(CONFIG_KEY);
   const menu = new Alert();
   menu.title = 'Orbe — widget';
   menu.message = configured ? 'Widget configuré.' : 'Première utilisation : configure le widget avec ton code de liaison.';
@@ -359,14 +386,14 @@ async function main() {
       await err.presentAlert();
     }
   } else if (configured && choice === 4) {
-    Keychain.remove(CONFIG_KEY);
-    if (Keychain.contains(CACHE_KEY)) Keychain.remove(CACHE_KEY);
+    store.remove(CONFIG_KEY);
+    store.remove(CACHE_KEY);
   }
   Script.complete();
 }
 
 if (typeof ORBE_TEST !== 'undefined') {
-  ORBE_TEST.api = { SBOX, expandKey, encryptBlock, gcmDecrypt, parsePairing, decryptSummary, build, loadData, utf8, b64bytes };
+  ORBE_TEST.api = { SBOX, expandKey, encryptBlock, gcmDecrypt, parsePairing, decryptSummary, build, loadData, utf8, b64bytes, store };
 } else {
   await main();
 }
