@@ -331,7 +331,7 @@ TC.lock = (function () {
     els.root.hidden = false;
     els.pad.hidden = false;
     els.offer.hidden = true;
-    els.title.textContent = mode === 'setup' ? 'Bienvenue' : 'Calendrier Trading';
+    els.title.textContent = mode === 'setup' ? 'Bienvenue dans Orbe' : 'Orbe';
     els.forgot.hidden = mode === 'setup';
     renderDots();
 

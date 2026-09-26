@@ -136,6 +136,23 @@
     themeTimer = setTimeout(() => root.classList.remove('theme-switching'), 450);
   }
 
+  /* ---------------- Icône de l'appli ---------------- */
+  function initIconPicker() {
+    let current = 'glacier';
+    try { current = localStorage.getItem('ct.icon') || 'glacier'; } catch (e) { /* ignoré */ }
+    const buttons = [...document.querySelectorAll('.icon-choice')];
+    const apply = (v) => {
+      buttons.forEach((b) => b.setAttribute('aria-checked', String(b.dataset.icon === v)));
+      $('touchIcon').href = `icons/orbe-${v}-180.png`;
+      $('favicon').href = `icons/orbe-${v}-192.png`;
+    };
+    buttons.forEach((b) => b.addEventListener('click', () => {
+      try { localStorage.setItem('ct.icon', b.dataset.icon); } catch (e) { /* ignoré */ }
+      apply(b.dataset.icon);
+    }));
+    apply(current);
+  }
+
   /* ---------------- Onglets ---------------- */
   const TABS = {
     journal: { title: 'Journal', sub: 'Trading 212 · CFD' },
@@ -143,14 +160,6 @@
     coach: { title: 'Coach', sub: 'Analyse de tes trades par l’IA' },
     settings: { title: 'Réglages', sub: 'Données, sécurité, apparence' }
   };
-
-  function moveIndicator() {
-    const active = document.querySelector('.tab[aria-current="page"]');
-    const ind = $('tabIndicator');
-    if (!active || !ind) return;
-    ind.style.width = active.offsetWidth + 'px';
-    ind.style.transform = `translateX(${active.offsetLeft}px)`;
-  }
 
   function setTab(tab) {
     if (!TABS[tab]) tab = 'journal';
@@ -165,7 +174,7 @@
     els.importBtn.hidden = tab !== 'journal';
     document.body.dataset.tab = tab;
     storage.setLastTab(tab);
-    moveIndicator();
+    TC.tabbar.moveTo(tab);
     if (tab === 'journal') render();           // redessine la courbe à la bonne largeur
     if (tab === 'wealth') TC.wealth.render();
     if (tab === 'coach') TC.ai.open();
@@ -859,9 +868,9 @@
     sync.onRemoteChange(() => { if (state.tab === 'wealth') TC.wealth.render(); });
 
     // Onglets
-    document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tabBtn)));
-    window.addEventListener('resize', moveIndicator);
+    TC.tabbar.init({ onSelect: setTab });
     $('lockNowBtn').addEventListener('click', lockApp);
+    initIconPicker();
     document.querySelectorAll('input[name="theme"]').forEach((r) => r.addEventListener('change', () => setThemeChoice(r.value)));
     storage.onLocalChange(() => sync.schedule());
     window.addEventListener('online', () => sync.schedule(200));

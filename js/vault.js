@@ -138,8 +138,8 @@ TC.vault = (function () {
       const prfSalt = rand(32);
       const cred = await navigator.credentials.create({
         publicKey: {
-          rp: { name: 'Calendrier Trading' },
-          user: { id: rand(16), name: 'Calendrier Trading', displayName: 'Calendrier Trading' },
+          rp: { name: 'Orbe' },
+          user: { id: rand(16), name: 'Orbe', displayName: 'Orbe' },
           challenge: rand(32),
           pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
           authenticatorSelection: { authenticatorAttachment: 'platform', residentKey: 'preferred', userVerification: 'required' },

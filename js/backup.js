@@ -42,14 +42,14 @@ TC.backup = (function () {
       kdf: { name: 'PBKDF2-SHA256', salt: b64(salt), iterations: ITERATIONS },
       iv: b64(iv), ct: b64(ct)
     });
-    return new File([content], `calendrier-trading-sauvegarde-${today()}.json`, { type: 'application/json' });
+    return new File([content], `orbe-sauvegarde-${today()}.json`, { type: 'application/json' });
   }
 
   function parseBackup(text) {
     let data;
     try { data = JSON.parse(text); } catch (e) { data = null; }
     if (!data || data.app !== APP || data.type !== 'backup' || !data.kdf || !data.ct) {
-      throw new BackupError('Ce fichier n’est pas une sauvegarde de Calendrier Trading.', 'format');
+      throw new BackupError('Ce fichier n’est pas une sauvegarde d’Orbe.', 'format');
     }
     return data;
   }
@@ -91,7 +91,7 @@ TC.backup = (function () {
     }
     // BOM : Excel reconnaît ainsi les accents (UTF-8)
     const content = '﻿' + rows.map((r) => r.map(cell).join(';')).join('\r\n');
-    return new File([content], `calendrier-trading-${today()}.csv`, { type: 'text/csv' });
+    return new File([content], `orbe-journal-${today()}.csv`, { type: 'text/csv' });
   }
 
   /* ---------- Envoi du fichier ---------- */

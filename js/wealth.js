@@ -161,7 +161,33 @@ TC.wealth = (function () {
     els.controls.querySelectorAll('[data-cmode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cmode === chartPref.cmode)));
   }
 
+  let histPrev = null, histStop = null;
+
+  /* Pendant le glissement du doigt, le grand montant et la date suivent la courbe */
+  function scrubHero(totalEl, subEl) {
+    let saved = null;
+    return {
+      show(value, sub, cls) {
+        if (!saved) saved = { total: totalEl.textContent, sub: subEl.textContent, cls: subEl.className };
+        totalEl.textContent = eur(round2(value));
+        subEl.textContent = sub;
+        subEl.className = saved.cls.split(' ')[0] + ' ' + (cls || '');
+        totalEl.classList.add('is-scrubbing');
+      },
+      reset() {
+        if (!saved) return;
+        totalEl.textContent = saved.total;
+        subEl.textContent = saved.sub;
+        subEl.className = saved.cls;
+        totalEl.classList.remove('is-scrubbing');
+        saved = null;
+      }
+    };
+  }
+
   function drawChart(today) {
+    const C = TC.chart;
+    if (histStop) histStop();
     els.chart.replaceChildren();
     syncControls();
     const present = SLOTS.filter((c) => accounts.some((a) => a.category === c && a.snapshots.length));
@@ -180,7 +206,7 @@ TC.wealth = (function () {
     els.controls.hidden = !accounts.some((a) => a.snapshots.length);
     els.chartHint.hidden = enough || !accounts.length;
     els.chartHint.textContent = !cats.length ? 'Aucune catégorie sélectionnée.' : 'La courbe d’évolution apparaîtra dès ta 2e mise à jour sur cette période.';
-    if (!enough) return;
+    if (!enough) { histPrev = null; return; }
 
     const stacked = chartPref.cmode === 'stack' && cats.length > 1;
     const points = dates.map((d) => {
@@ -191,63 +217,86 @@ TC.wealth = (function () {
     });
 
     const width = Math.max(260, els.chart.clientWidth || 320);
-    const height = width < 600 ? 160 : 200;
-    const m = { top: 10, right: 12, bottom: 22, left: 58 };
+    const height = width < 600 ? 170 : 210;
+    const m = { top: 16, right: 6, bottom: 24, left: 6 };
     const iw = width - m.left - m.right, ih = height - m.top - m.bottom;
     const vals = points.map((p) => p.v);
     const lo = stacked ? 0 : Math.min(...vals), hi = Math.max(...vals);
-    const pad = stacked ? 0 : Math.max((hi - lo) * 0.15, hi * 0.01, 10);
+    const pad = stacked ? 0 : Math.max((hi - lo) * 0.25, hi * 0.01, 10);
     const ticks = TC.analysis.niceTicks(Math.max(0, lo - pad), hi + pad, 3);
     const y0 = ticks[0], y1 = ticks[ticks.length - 1];
     const t0 = points[0].t, t1 = points[points.length - 1].t;
     const x = (t) => m.left + ((t - t0) / (t1 - t0 || 1)) * iw;
     const y = (v) => m.top + (1 - (v - y0) / (y1 - y0 || 1)) * ih;
+    const base = m.top + ih;
 
-    const root = svg('svg', { viewBox: `0 0 ${width} ${height}`, width, height, class: 'chart-svg chart-in', role: 'img' });
-    for (const t of ticks) {
-      root.append(svg('line', { x1: m.left, x2: width - m.right, y1: y(t), y2: y(t), class: 'chart-grid' }));
-      const lab = svg('text', { x: m.left - 8, y: y(t), class: 'chart-tick', 'text-anchor': 'end', 'dominant-baseline': 'middle' });
+    const root = C.el('svg', { viewBox: `0 0 ${width} ${height}`, width, height, class: 'chart-svg', role: 'img' });
+    const defs = C.el('defs');
+    root.append(defs);
+    // repères discrets, étiquettes posées dans le graphique (style épuré)
+    for (const t of ticks.slice(1)) {
+      root.append(C.el('line', { x1: m.left, x2: width - m.right, y1: y(t), y2: y(t), class: 'chart-grid' }));
+      const lab = C.el('text', { x: width - m.right, y: y(t) - 4, class: 'chart-tick', 'text-anchor': 'end' });
       lab.textContent = Math.round(t).toLocaleString('fr-FR');
       root.append(lab);
     }
     for (const p of [points[0], points[points.length - 1]]) {
-      const lab = svg('text', { x: x(p.t), y: height - 5, class: 'chart-tick', 'text-anchor': p === points[0] ? 'start' : 'end' });
+      const lab = C.el('text', { x: x(p.t), y: height - 5, class: 'chart-tick', 'text-anchor': p === points[0] ? 'start' : 'end' });
       lab.textContent = cal.fmtShortDate(p.d).replace(/^\S+ /, '');
       root.append(lab);
     }
-    const path = (fn) => points.map((p, i) => `${i ? 'L' : 'M'}${x(p.t).toFixed(1)} ${y(fn(p)).toFixed(1)}`).join(' ');
+
     if (stacked) {
-      // Couches empilées, de bas en haut dans l'ordre des couleurs
+      // Couches empilées et lissées, de bas en haut dans l'ordre des couleurs
+      const bounds = cats.map((c, i) => C.sample(points.map((p) => [x(p.t), y(p.layers[i])])));
+      const floor = bounds[0].map((q) => [q[0], base]);
       cats.forEach((c, i) => {
-        const top = path((p) => p.layers[i]);
-        const bottom = points.slice().reverse().map((p) => `L${x(p.t).toFixed(1)} ${y(i ? p.layers[i - 1] : 0).toFixed(1)}`).join(' ');
-        const area = svg('path', { d: `${top} ${bottom} Z`, class: 'chart-stack' });
-        area.style.fill = `var(--series-${SLOTS.indexOf(c) + 1})`;
-        root.append(area);
+        const path = C.el('path', { d: C.band(bounds[i], i ? bounds[i - 1] : floor), class: 'chart-stack chart-fade' });
+        path.style.fill = `var(--series-${SLOTS.indexOf(c) + 1})`;
+        root.append(path);
       });
+      histPrev = null;
     } else {
-      const line = path((p) => p.v);
-      root.append(svg('path', { d: `${line} L${x(t1).toFixed(1)} ${m.top + ih} L${x(t0).toFixed(1)} ${m.top + ih} Z`, class: 'chart-area accent' }));
-      root.append(svg('path', { d: line, class: 'chart-line accent chart-draw', pathLength: 1 }));
+      const pts = C.sample(points.map((p) => [x(p.t), y(p.v)]));
+      const fill = C.gradient(defs, 'wg' + Math.random().toString(36).slice(2, 7));
+      const areaEl = C.el('path', { d: C.area(pts, base), fill, class: 'chart-grad' });
+      const lineEl = C.el('path', { d: C.line(pts), class: 'chart-line accent chart-glow' });
+      root.append(areaEl, lineEl);
+      if (histPrev && histPrev.width === width) {
+        // la courbe précédente se transforme en douceur en la nouvelle
+        const from = histPrev.pts;
+        histStop = C.tween(480, (k) => {
+          const cur = C.mix(from, pts, k);
+          lineEl.setAttribute('d', C.line(cur));
+          areaEl.setAttribute('d', C.area(cur, base));
+        });
+      } else {
+        lineEl.classList.add('chart-draw');
+        lineEl.setAttribute('pathLength', 1);
+      }
+      histPrev = { pts, width };
     }
     const last = points[points.length - 1];
-    root.append(svg('circle', { cx: x(last.t), cy: y(last.v), r: 4, class: 'chart-dot accent' }));
+    root.append(C.el('circle', { cx: x(last.t), cy: y(last.v), r: 4.5, class: 'chart-dot accent chart-pulse' }));
 
-    // Survol / toucher : date, total affiché et détail par catégorie
-    const cross = svg('line', { y1: m.top, y2: m.top + ih, class: 'chart-cross', visibility: 'hidden' });
-    const dot = svg('circle', { r: 5, class: 'chart-dot accent', visibility: 'hidden' });
-    const hit = svg('rect', { x: m.left, y: 0, width: iw, height, fill: 'transparent', class: 'chart-hit' });
+    // Glisser le doigt : le montant en haut suit la courbe
+    const cross = C.el('line', { y1: m.top - 6, y2: base, class: 'chart-cross', visibility: 'hidden' });
+    const dot = C.el('circle', { r: 6, class: 'chart-dot accent chart-scrub-dot', visibility: 'hidden' });
+    const hit = C.el('rect', { x: 0, y: 0, width, height, fill: 'transparent', class: 'chart-hit' });
     root.append(cross, dot, hit);
     const tip = el('div', 'chart-tip');
     tip.hidden = true;
+    const hero = scrubHero(els.total, els.delta);
     const show = (clientX) => {
       const box = root.getBoundingClientRect();
       const px = ((clientX - box.left) / box.width) * width;
       const p = points.reduce((best, q) => (Math.abs(x(q.t) - px) < Math.abs(x(best.t) - px) ? q : best));
       cross.setAttribute('x1', x(p.t)); cross.setAttribute('x2', x(p.t)); cross.setAttribute('visibility', 'visible');
       dot.setAttribute('cx', x(p.t)); dot.setAttribute('cy', y(p.v)); dot.setAttribute('visibility', 'visible');
-      const rows = [el('div', 'chart-tip-date', cal.fmtShortDate(p.d)), el('div', 'chart-tip-cum', eur(p.v))];
+      const diff = round2(p.v - points[0].v);
+      hero.show(p.v, `${cal.fmtLongDate(p.d)} · ${cal.fmtEur(diff)} sur la période`, diff > 0 ? 'tone-win' : diff < 0 ? 'tone-loss' : '');
       if (stacked) {
+        const rows = [];
         for (let i = cats.length - 1; i >= 0; i--) {
           const r = el('div', 'chart-tip-row');
           const sw = el('span', 'legend-swatch');
@@ -255,16 +304,19 @@ TC.wealth = (function () {
           r.append(sw, el('span', null, `${CATEGORIES[cats[i]]} : ${eur(round2(p.layers[i] - (i ? p.layers[i - 1] : 0)))}`));
           rows.push(r);
         }
+        tip.replaceChildren(...rows);
+        tip.hidden = false;
+        const left = (x(p.t) / width) * box.width;
+        tip.style.left = Math.max(0, Math.min(box.width - tip.offsetWidth, left - tip.offsetWidth / 2)) + 'px';
+        tip.style.top = '0px';
       }
-      tip.replaceChildren(...rows);
-      tip.hidden = false;
-      const left = (x(p.t) / width) * box.width;
-      tip.style.left = Math.max(0, Math.min(box.width - tip.offsetWidth, left - tip.offsetWidth / 2)) + 'px';
-      tip.style.top = Math.max(0, (y(p.v) / height) * box.height - tip.offsetHeight - 12) + 'px';
     };
+    const hide = () => { cross.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); tip.hidden = true; hero.reset(); };
     hit.addEventListener('pointermove', (e) => show(e.clientX));
     hit.addEventListener('pointerdown', (e) => show(e.clientX));
-    hit.addEventListener('pointerleave', () => { cross.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); tip.hidden = true; });
+    hit.addEventListener('pointerleave', hide);
+    hit.addEventListener('pointerup', (e) => { if (e.pointerType !== 'mouse') hide(); });
+    hit.addEventListener('pointercancel', hide);
     root.setAttribute('aria-label', `Évolution du patrimoine (${cats.map((c) => CATEGORIES[c]).join(', ')}) : ${eur(points[0].v)} le ${cal.fmtShortDate(points[0].d)}, ${eur(last.v)} le ${cal.fmtShortDate(last.d)}.`);
     els.chart.append(root, tip);
   }
@@ -343,66 +395,93 @@ TC.wealth = (function () {
     els.fcNote.textContent = `Estimations avant impôts, qui ne garantissent rien : les performances passées ne préjugent pas des performances futures. Bourse : MSCI World en euros, moyenne ${F().MSCI.tenYears.toString().replace('.', ',')} %/an sur 10 ans (source MSCI, ${F().MSCI.asOf}), moins les frais de l’ETF.`;
   }
 
+  let fcPrev = null, fcStop = null;
+
   function drawForecastChart(p, today) {
+    const C = TC.chart;
+    if (fcStop) fcStop();
     els.fcChart.replaceChildren();
     const months = p.months;
     const width = Math.max(260, els.fcChart.clientWidth || 320);
-    const height = width < 600 ? 170 : 210;
-    const m = { top: 12, right: 12, bottom: 22, left: 58 };
+    const height = width < 600 ? 180 : 220;
+    const m = { top: 16, right: 6, bottom: 24, left: 6 };
     const iw = width - m.left - m.right, ih = height - m.top - m.bottom;
     const lows = p.total.low, highs = p.total.high, mid = p.total.central;
     const ticks = TC.analysis.niceTicks(Math.max(0, Math.min(...lows, today) * 0.97), Math.max(...highs) * 1.02, 3);
     const y0 = ticks[0], y1 = ticks[ticks.length - 1];
     const x = (i) => m.left + (i / months) * iw;
     const y = (v) => m.top + (1 - (v - y0) / (y1 - y0 || 1)) * ih;
+    const base = m.top + ih;
 
-    const root = svg('svg', { viewBox: `0 0 ${width} ${height}`, width, height, class: 'chart-svg chart-in', role: 'img' });
-    for (const t of ticks) {
-      root.append(svg('line', { x1: m.left, x2: width - m.right, y1: y(t), y2: y(t), class: 'chart-grid' }));
-      const lab = svg('text', { x: m.left - 8, y: y(t), class: 'chart-tick', 'text-anchor': 'end', 'dominant-baseline': 'middle' });
+    const root = C.el('svg', { viewBox: `0 0 ${width} ${height}`, width, height, class: 'chart-svg', role: 'img' });
+    const defs = C.el('defs');
+    root.append(defs);
+    for (const t of ticks.slice(1)) {
+      root.append(C.el('line', { x1: m.left, x2: width - m.right, y1: y(t), y2: y(t), class: 'chart-grid' }));
+      const lab = C.el('text', { x: width - m.right, y: y(t) - 4, class: 'chart-tick', 'text-anchor': 'end' });
       lab.textContent = Math.round(t).toLocaleString('fr-FR');
       root.append(lab);
     }
-    const lab0 = svg('text', { x: m.left, y: height - 5, class: 'chart-tick', 'text-anchor': 'start' });
+    const lab0 = C.el('text', { x: m.left, y: height - 5, class: 'chart-tick', 'text-anchor': 'start' });
     lab0.textContent = 'aujourd’hui';
-    const lab1 = svg('text', { x: width - m.right, y: height - 5, class: 'chart-tick', 'text-anchor': 'end' });
+    const lab1 = C.el('text', { x: width - m.right, y: height - 5, class: 'chart-tick', 'text-anchor': 'end' });
     lab1.textContent = horizonDate(months);
     root.append(lab0, lab1);
 
-    const line = (arr) => arr.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
-    if (p.risky) {
-      const band = `${line(highs)} ${lows.slice().reverse().map((v, j) => `L${x(months - j).toFixed(1)} ${y(v).toFixed(1)}`).join(' ')} Z`;
-      root.append(svg('path', { d: band, class: 'fc-band' }));
+    const toPts = (arr) => C.sample(arr.map((v, i) => [x(i), y(v)]));
+    const midPts = toPts(mid), lowPts = toPts(lows), highPts = toPts(highs);
+    const bandEl = C.el('path', { d: C.band(highPts, lowPts), class: 'fc-band' });
+    if (!p.risky) bandEl.style.display = 'none';
+    const fill = C.gradient(defs, 'fg' + Math.random().toString(36).slice(2, 7));
+    const areaEl = C.el('path', { d: C.area(midPts, base), fill, class: 'chart-grad' });
+    const lineEl = C.el('path', { d: C.line(midPts), class: 'chart-line accent chart-glow' });
+    const endDot = C.el('circle', { cx: x(months), cy: y(mid[months]), r: 4.5, class: 'chart-dot accent chart-pulse' });
+    root.append(bandEl, areaEl, lineEl, endDot);
+    if (fcPrev && fcPrev.width === width) {
+      // passage d'un horizon à l'autre : les courbes se transforment en douceur
+      const from = fcPrev;
+      fcStop = C.tween(520, (k) => {
+        const cm = C.mix(from.mid, midPts, k);
+        lineEl.setAttribute('d', C.line(cm));
+        areaEl.setAttribute('d', C.area(cm, base));
+        if (p.risky) bandEl.setAttribute('d', C.band(C.mix(from.high, highPts, k), C.mix(from.low, lowPts, k)));
+        endDot.setAttribute('cy', cm[cm.length - 1][1]);
+      });
+    } else {
+      lineEl.classList.add('chart-draw');
+      lineEl.setAttribute('pathLength', 1);
     }
-    root.append(svg('path', { d: `${line(mid)} L${x(months)} ${m.top + ih} L${x(0)} ${m.top + ih} Z`, class: 'chart-area accent' }));
-    root.append(svg('path', { d: line(mid), class: 'chart-line accent chart-draw', pathLength: 1 }));
-    root.append(svg('circle', { cx: x(months), cy: y(mid[months]), r: 4, class: 'chart-dot accent' }));
+    fcPrev = { mid: midPts, low: lowPts, high: highPts, width };
 
-    const cross = svg('line', { y1: m.top, y2: m.top + ih, class: 'chart-cross', visibility: 'hidden' });
-    const dot = svg('circle', { r: 5, class: 'chart-dot accent', visibility: 'hidden' });
-    const hit = svg('rect', { x: m.left, y: 0, width: iw, height, fill: 'transparent', class: 'chart-hit' });
+    const cross = C.el('line', { y1: m.top - 6, y2: base, class: 'chart-cross', visibility: 'hidden' });
+    const dot = C.el('circle', { r: 6, class: 'chart-dot accent chart-scrub-dot', visibility: 'hidden' });
+    const hit = C.el('rect', { x: 0, y: 0, width, height, fill: 'transparent', class: 'chart-hit' });
     root.append(cross, dot, hit);
-    const tip = el('div', 'chart-tip');
-    tip.hidden = true;
+    const heroTotal = scrubHero(els.fcTotal, els.fcRange);
+    const whenSaved = { text: null };
     const show = (clientX) => {
       const box = root.getBoundingClientRect();
       const i = Math.max(0, Math.min(months, Math.round(((((clientX - box.left) / box.width) * width) - m.left) / iw * months)));
       cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.setAttribute('visibility', 'visible');
       dot.setAttribute('cx', x(i)); dot.setAttribute('cy', y(mid[i])); dot.setAttribute('visibility', 'visible');
-      const when = i === 0 ? 'Aujourd’hui' : i < 12 ? `Dans ${i} mois` : `Dans ${(i / 12).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} an${i >= 24 ? 's' : ''}`;
-      const rows = [el('div', 'chart-tip-date', when), el('div', 'chart-tip-cum', eur(round2(mid[i])))];
-      if (p.risky && i) rows.push(el('div', 'chart-tip-date', `${eur(round2(lows[i]))} – ${eur(round2(highs[i]))}`));
-      tip.replaceChildren(...rows);
-      tip.hidden = false;
-      const left = (x(i) / width) * box.width;
-      tip.style.left = Math.max(0, Math.min(box.width - tip.offsetWidth, left - tip.offsetWidth / 2)) + 'px';
-      tip.style.top = Math.max(0, (y(mid[i]) / height) * box.height - tip.offsetHeight - 12) + 'px';
+      if (whenSaved.text === null) whenSaved.text = els.fcWhen.textContent;
+      const years = Math.floor(i / 12), rest = i % 12;
+      els.fcWhen.textContent = i === 0 ? 'Aujourd’hui'
+        : `Dans ${years ? `${years} an${years > 1 ? 's' : ''}` : ''}${years && rest ? ' et ' : ''}${rest ? `${rest} mois` : ''}`;
+      heroTotal.show(mid[i], p.risky && i ? `Fourchette : ${eur(round2(lows[i]))} à ${eur(round2(highs[i]))}` : '', '');
+    };
+    const hide = () => {
+      cross.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden');
+      heroTotal.reset();
+      if (whenSaved.text !== null) { els.fcWhen.textContent = whenSaved.text; whenSaved.text = null; }
     };
     hit.addEventListener('pointermove', (e) => show(e.clientX));
     hit.addEventListener('pointerdown', (e) => show(e.clientX));
-    hit.addEventListener('pointerleave', () => { cross.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); tip.hidden = true; });
+    hit.addEventListener('pointerleave', hide);
+    hit.addEventListener('pointerup', (e) => { if (e.pointerType !== 'mouse') hide(); });
+    hit.addEventListener('pointercancel', hide);
     root.setAttribute('aria-label', `Prévision du patrimoine : ${eur(today)} aujourd’hui, environ ${eur(round2(mid[months]))} dans ${HORIZONS[months]}` + (p.risky ? `, fourchette ${eur(round2(lows[months]))} à ${eur(round2(highs[months]))}.` : '.'));
-    els.fcChart.append(root, tip);
+    els.fcChart.append(root);
   }
 
   function renderForecastAccounts(p) {
@@ -476,8 +555,11 @@ TC.wealth = (function () {
     render();
   }
 
+  /* Répartition : anneau (camembert) + liste des valeurs */
   function renderAllocation(today, total) {
+    const C = TC.chart;
     els.alloc.replaceChildren();
+    els.donut.replaceChildren();
     const sums = {};
     for (const a of accounts) {
       const v = valueAt(a, today);
@@ -485,18 +567,69 @@ TC.wealth = (function () {
     }
     const rows = Object.entries(sums).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
     els.allocPanel.hidden = !rows.length;
-    const max = Math.max(...rows.map(([, v]) => v), 1);
+    if (!rows.length) return;
+    const sum = rows.reduce((t, [, v]) => t + v, 0);
+    const pct = (v) => Math.round((v / sum) * 100);
+
+    const size = 180, r = 68, stroke = 26, circ = 2 * Math.PI * r;
+    const svgEl = C.el('svg', { viewBox: `0 0 ${size} ${size}`, width: size, height: size, class: 'donut-svg', role: 'img',
+      'aria-label': 'Répartition : ' + rows.map(([c, v]) => `${CATEGORIES[c]} ${pct(v)} %`).join(', ') });
+    const ring = C.el('g', { transform: `rotate(-90 ${size / 2} ${size / 2})` });
+    ring.append(C.el('circle', { cx: size / 2, cy: size / 2, r, fill: 'none', 'stroke-width': stroke, class: 'donut-track' }));
+    const gap = rows.length > 1 ? 3 : 0;                 // espace entre les parts
+    let start = 0;
+    const segs = rows.map(([cat, v]) => {
+      const len = (v / sum) * circ;
+      const seg = C.el('circle', { cx: size / 2, cy: size / 2, r, fill: 'none', 'stroke-width': stroke, class: 'donut-seg' });
+      seg.style.stroke = `var(--series-${SLOTS.indexOf(cat) + 1})`;
+      seg.style.strokeDasharray = `0 ${circ}`;
+      seg.style.strokeDashoffset = String(-start);
+      seg.dataset.target = `${Math.max(0.5, len - gap)} ${circ}`;
+      seg.dataset.cat = cat;
+      start += len;
+      ring.append(seg);
+      return seg;
+    });
+    const center = C.el('g', { class: 'donut-center' });
+    const l1 = C.el('text', { x: size / 2, y: size / 2 - 8, 'text-anchor': 'middle', class: 'donut-label' });
+    const l2 = C.el('text', { x: size / 2, y: size / 2 + 14, 'text-anchor': 'middle', class: 'donut-value' });
+    center.append(l1, l2);
+    svgEl.append(ring, center);
+    els.donut.append(svgEl);
+
+    const items = [];
+    const select = (cat) => {
+      const v = cat ? sums[cat] : sum;
+      l1.textContent = cat ? `${CATEGORIES[cat]} · ${pct(v)} %` : 'Total';
+      l2.textContent = eur(round2(v));
+      segs.forEach((sg) => sg.classList.toggle('is-dim', !!cat && sg.dataset.cat !== cat));
+      items.forEach((li) => li.classList.toggle('is-active', li.dataset.cat === cat));
+    };
     for (const [cat, v] of rows) {
       const li = el('li', 'alloc-row');
-      const head = el('div', 'alloc-head');
-      head.append(el('span', 'alloc-name', CATEGORIES[cat]), el('span', 'alloc-val', `${eur(v)} · ${total > 0 ? Math.round((v / total) * 100) : 0} %`));
-      const bar = el('div', 'inst-bar');
-      const fill = el('span', 'inst-fill accent');
-      fill.style.width = Math.max(2, (v / max) * 100) + '%';
-      bar.append(fill);
-      li.append(head, bar);
+      li.dataset.cat = cat;
+      li.tabIndex = 0;
+      const sw = el('span', 'legend-swatch');
+      sw.style.background = `var(--series-${SLOTS.indexOf(cat) + 1})`;
+      const name = el('span', 'alloc-name');
+      name.append(sw, document.createTextNode(CATEGORIES[cat]));
+      li.append(name, el('span', 'alloc-val', `${eur(v)} · ${pct(v)} %`));
+      li.addEventListener('pointerenter', () => select(cat));
+      li.addEventListener('pointerleave', () => select(null));
+      li.addEventListener('focus', () => select(cat));
+      li.addEventListener('blur', () => select(null));
+      li.addEventListener('click', () => select(li.classList.contains('is-active') ? null : cat));
+      items.push(li);
       els.alloc.append(li);
     }
+    segs.forEach((sg) => {
+      sg.addEventListener('pointerenter', () => select(sg.dataset.cat));
+      sg.addEventListener('pointerleave', () => select(null));
+      sg.addEventListener('click', () => select(sg.classList.contains('is-dim') || !items.some((i) => i.classList.contains('is-active')) ? sg.dataset.cat : null));
+    });
+    select(null);
+    // l'anneau se dessine en tournant
+    requestAnimationFrame(() => requestAnimationFrame(() => segs.forEach((sg) => { sg.style.strokeDasharray = sg.dataset.target; })));
   }
 
   function renderAccounts(today) {
@@ -689,7 +822,7 @@ TC.wealth = (function () {
     options = opts;
     Object.assign(els, {
       total: $('wealthTotal'), delta: $('wealthDelta'), chart: $('wealthChart'), chartHint: $('wealthChartHint'),
-      empty: $('wealthEmpty'), alloc: $('wealthAlloc'), allocPanel: $('wealthAllocPanel'), accounts: $('wealthAccounts'),
+      empty: $('wealthEmpty'), alloc: $('wealthAlloc'), donut: $('wealthDonut'), allocPanel: $('wealthAllocPanel'), accounts: $('wealthAccounts'),
       addBtn: $('wealthAddBtn'), finaryBtn: $('finaryImportBtn'), finaryInput: $('finaryInput'),
       accSheet: $('accountSheet'), accForm: $('accountForm'), accTitle: $('accountTitle'), accSub: $('accountSub'),
       accName: $('accName'), accCat: $('accCat'), accInst: $('accInst'), accRate: $('accRate'),
@@ -784,7 +917,9 @@ TC.wealth = (function () {
     pendingFinary = null;
     fcEditing = null;
     lastFcTotal = null;
-    [els.chart, els.alloc, els.accounts, els.accHistory, els.finSummary, els.legend, els.fcChart, els.fcAccounts].forEach((n) => n && n.replaceChildren());
+    histPrev = null;
+    fcPrev = null;
+    [els.chart, els.alloc, els.donut, els.accounts, els.accHistory, els.finSummary, els.legend, els.fcChart, els.fcAccounts].forEach((n) => n && n.replaceChildren());
     if (els.total) { els.total.textContent = '–'; els.delta.textContent = ''; }
     if (els.fcTotal) { els.fcTotal.textContent = '–'; els.fcGain.textContent = ''; els.fcRange.textContent = ''; }
     [els.accSheet, els.finSheet, els.fcSheet].forEach((d) => d && d.open && d.close());

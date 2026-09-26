@@ -1,32 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#5B7DBA"/>
-      <stop offset="1" stop-color="#9A8BDD"/>
-    </linearGradient>
-    <radialGradient id="b1" cx=".2" cy=".15" r=".6"><stop offset="0" stop-color="#A6DBD1" stop-opacity=".75"/><stop offset="1" stop-color="#A6DBD1" stop-opacity="0"/></radialGradient>
-    <radialGradient id="b2" cx=".9" cy=".95" r=".55"><stop offset="0" stop-color="#F5CDB6" stop-opacity=".6"/><stop offset="1" stop-color="#F5CDB6" stop-opacity="0"/></radialGradient>
-    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".42"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".16"/>
-    </linearGradient>
-    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".95"/>
-      <stop offset=".5" stop-color="#FFFFFF" stop-opacity=".15"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".6"/>
-    </linearGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4F74B8"/><stop offset="1" stop-color="#9A8BDD"/></linearGradient>
+    <radialGradient id="glow" cx=".18" cy=".12" r=".75"><stop offset="0" stop-color="#A6DBD1" stop-opacity=".75"/><stop offset="1" stop-color="#A6DBD1" stop-opacity="0"/></radialGradient>
+    <radialGradient id="orb" cx=".36" cy=".3" r=".8"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset=".5" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity=".07"/></radialGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".5" stop-color="#fff" stop-opacity=".12"/><stop offset="1" stop-color="#fff" stop-opacity=".55"/></linearGradient>
+    <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".38"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <clipPath id="clip"><circle cx="512" cy="522" r="296"/></clipPath>
   </defs>
   <rect width="1024" height="1024" fill="url(#bg)"/>
-  <rect width="1024" height="1024" fill="url(#b1)"/>
-  <rect width="1024" height="1024" fill="url(#b2)"/>
-  <rect x="222" y="232" width="580" height="560" rx="92" fill="url(#glass)" stroke="url(#rim)" stroke-width="6"/>
-  <rect x="222" y="232" width="580" height="120" rx="92" fill="#FFFFFF" fill-opacity=".22"/>
-  <g>
-    <rect x="286" y="400" width="124" height="124" rx="30" fill="#FFFFFF" fill-opacity=".45"/>
-    <rect x="450" y="400" width="124" height="124" rx="30" fill="#8FD1B0"/>
-    <rect x="614" y="400" width="124" height="124" rx="30" fill="#F2A9AC" fill-opacity=".9"/>
-    <rect x="286" y="564" width="124" height="124" rx="30" fill="#6FC39C"/>
-    <rect x="450" y="564" width="124" height="124" rx="30" fill="#FFFFFF" fill-opacity=".45"/>
-    <rect x="614" y="564" width="124" height="124" rx="30" fill="#B8E6CF"/>
+  <rect width="1024" height="1024" fill="url(#glow)"/>
+  <circle cx="512" cy="540" r="318" fill="#000" fill-opacity=".10"/>
+  <circle cx="512" cy="522" r="300" fill="url(#orb)" stroke="url(#rim)" stroke-width="9"/>
+  <g clip-path="url(#clip)">
+    <path d="M190 700 C 300 690, 360 600, 450 612 S 600 470, 700 452" fill="none" stroke="#fff" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
+  <circle cx="700" cy="452" r="30" fill="#fff"/>
+  <circle cx="700" cy="452" r="52" fill="#fff" fill-opacity=".22"/>
+  <ellipse cx="400" cy="370" rx="118" ry="52" transform="rotate(-32 400 370)" fill="#fff" fill-opacity=".38"/>
 </svg>

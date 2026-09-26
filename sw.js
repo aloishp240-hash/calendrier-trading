@@ -6,7 +6,7 @@
    Ce fichier ne voit jamais tes données : elles restent chiffrées dans le
    stockage du navigateur. */
 
-const CACHE = 'calendrier-trading-v8';
+const CACHE = 'orbe-v9';
 const CORE = [
   './',
   './index.html',
@@ -22,14 +22,21 @@ const CORE = [
   './js/ai-store.js',
   './js/ai.js',
   './js/wealth-store.js',
+  './js/chart-kit.js',
   './js/forecast.js',
   './js/wealth.js',
+  './js/tabbar.js',
   './js/lock.js',
   './js/app.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  './icons/apple-touch-icon.png'
+  './icons/apple-touch-icon.png',
+  './icons/orbe-glacier-180.png',
+  './icons/orbe-aurore-180.png',
+  './icons/orbe-emeraude-180.png',
+  './icons/orbe-soleil-180.png',
+  './icons/orbe-graphite-180.png'
 ];
 const NETWORK_TIMEOUT = 4000;
 
