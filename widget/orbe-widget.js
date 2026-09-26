@@ -11,6 +11,11 @@ const APP_URL = 'https://aloishp240-hash.github.io/calendrier-trading/';
 const CONFIG_KEY = 'orbe.widget.config';
 const CACHE_KEY = 'orbe.widget.cache';
 const FILE = 'widget.enc.json';
+const OPEN_KEY = 'orbe.widget.open';
+/* Un lien web s'ouvre toujours dans Safari (qui a son propre stockage) : pour
+   ouvrir l'appli Orbe de l'écran d'accueil, le widget lance un raccourci Apple
+   « Ouvrir Orbe » (action « Ouvrir l'app » → Orbe). */
+const SHORTCUT_NAME = 'Ouvrir Orbe';
 
 /* ---------------- AES-256 (norme FIPS-197) ---------------- */
 const rotl8 = (x, s) => ((x << s) | (x >> (8 - s))) & 0xff;
@@ -154,6 +159,10 @@ const store = {
   }
 };
 
+function openUrl() {
+  return store.get(OPEN_KEY) === 'safari' ? APP_URL : `shortcuts://run-shortcut?name=${encodeURIComponent(SHORTCUT_NAME)}`;
+}
+
 /* ---------------- Données ---------------- */
 async function fetchSummary(cfg) {
   const req = new Request(`https://api.github.com/repos/${cfg.o}/${cfg.r}/contents/${FILE}`);
@@ -287,7 +296,7 @@ function footer(w, d, offline) {
 function build(result, family) {
   const w = new ListWidget();
   background(w);
-  w.url = APP_URL;
+  w.url = openUrl();
   w.refreshAfterDate = new Date(Date.now() + (result.state === 'ok' && !result.offline ? 30 : 5) * 60 * 1000);
   w.setPadding(14, 14, 12, 14);
   if (result.state !== 'ok') {
@@ -365,6 +374,8 @@ async function main() {
   menu.message = configured ? 'Widget configuré.' : 'Première utilisation : configure le widget avec ton code de liaison.';
   if (configured) { menu.addAction('Aperçu petit'); menu.addAction('Aperçu moyen'); menu.addAction('Aperçu grand'); }
   menu.addAction(configured ? 'Changer le code de liaison' : 'Configurer');
+  const viaSafari = store.get(OPEN_KEY) === 'safari';
+  if (configured) menu.addAction(viaSafari ? 'Au toucher : ouvrir l’appli Orbe (raccourci)' : 'Au toucher : ouvrir dans Safari');
   if (configured) menu.addDestructiveAction('Retirer la configuration');
   menu.addCancelAction('Fermer');
   const choice = await menu.presentAlert();
@@ -386,6 +397,15 @@ async function main() {
       await err.presentAlert();
     }
   } else if (configured && choice === 4) {
+    store.set(OPEN_KEY, viaSafari ? 'shortcut' : 'safari');
+    const done = new Alert();
+    done.title = viaSafari ? 'Ouverture de l’appli Orbe' : 'Ouverture dans Safari';
+    done.message = viaSafari
+      ? `Toucher le widget lancera le raccourci « ${SHORTCUT_NAME} ». Crée-le dans l’appli Raccourcis : action « Ouvrir l’app » → Orbe.`
+      : 'Toucher le widget ouvrira Orbe dans Safari (sans tes données, qui sont dans l’appli de l’écran d’accueil).';
+    done.addAction('OK');
+    await done.presentAlert();
+  } else if (configured && choice === 5) {
     store.remove(CONFIG_KEY);
     store.remove(CACHE_KEY);
   }
@@ -393,7 +413,7 @@ async function main() {
 }
 
 if (typeof ORBE_TEST !== 'undefined') {
-  ORBE_TEST.api = { SBOX, expandKey, encryptBlock, gcmDecrypt, parsePairing, decryptSummary, build, loadData, utf8, b64bytes, store };
+  ORBE_TEST.api = { openUrl, SBOX, expandKey, encryptBlock, gcmDecrypt, parsePairing, decryptSummary, build, loadData, utf8, b64bytes, store };
 } else {
   await main();
 }
