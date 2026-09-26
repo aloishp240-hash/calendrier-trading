@@ -190,7 +190,7 @@ function sparkline(values, width, height) {
   ctx.size = new Size(width, height);
   ctx.opaque = false;
   ctx.respectScreenScale = true;
-  if (values.length < 2) return ctx.getImage();
+  if (values.length < 2) return null;            // une seule date : pas encore de courbe
   const lo = Math.min(...values), hi = Math.max(...values);
   const pad = 4;
   const x = (i) => pad + (i / (values.length - 1)) * (width - 2 * pad);
@@ -229,9 +229,14 @@ function wealthBlock(stack, d, compact) {
       evo.diff > 0 ? C.win : evo.diff < 0 ? C.loss : C.muted, 'semi');
   }
   stack.addSpacer(compact ? 6 : 8);
-  const img = stack.addImage(sparkline(d.wealth.series || [], 280, compact ? 56 : 70));
-  img.resizable = true;
-  img.imageSize = new Size(compact ? 130 : 150, compact ? 26 : 34);
+  const image = sparkline(d.wealth.series || [], 280, compact ? 56 : 70);
+  if (image) {
+    const img = stack.addImage(image);
+    img.resizable = true;
+    img.imageSize = new Size(compact ? 130 : 150, compact ? 26 : 34);
+  } else {
+    text(stack, 'Courbe dès ta 2e mise à jour', 9, C.muted);
+  }
 }
 
 function tradingBlock(stack, d) {
