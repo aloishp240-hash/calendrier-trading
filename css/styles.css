@@ -64,6 +64,9 @@
   --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
   --series-4: #eda100; --series-5: #e87ba4; --series-6: #008300;
 
+  --lens-band: rgba(28, 58, 170, .78);
+  --tab-pill: color-mix(in srgb, #3F74E0 30%, transparent);
+  --tab-active: #1F3F86;
   --bubble-top: rgba(255, 255, 255, .78); --bubble-bottom: rgba(255, 255, 255, .38); --bubble-rim: rgba(255, 255, 255, 1);
 
   --radius-xl: 28px;
@@ -121,7 +124,7 @@
     --loss-border: rgba(246, 195, 195, .25);
     --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
     --series-4: #c98500; --series-5: #d55181; --series-6: #008300;
-    --bubble-top: rgba(255, 255, 255, .20); --bubble-bottom: rgba(255, 255, 255, .06); --bubble-rim: rgba(255, 255, 255, .45);
+    --lens-band: rgba(8, 20, 70, .85); --tab-pill: color-mix(in srgb, #5B8DEF 36%, transparent); --tab-active: #D2E1FF; --bubble-top: rgba(255, 255, 255, .20); --bubble-bottom: rgba(255, 255, 255, .06); --bubble-rim: rgba(255, 255, 255, .45);
 
   }
 }
@@ -171,7 +174,7 @@
   --loss-border: rgba(246, 195, 195, .25);
   --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
   --series-4: #c98500; --series-5: #d55181; --series-6: #008300;
-  --bubble-top: rgba(255, 255, 255, .20); --bubble-bottom: rgba(255, 255, 255, .06); --bubble-rim: rgba(255, 255, 255, .45);
+  --lens-band: rgba(8, 20, 70, .85); --tab-pill: color-mix(in srgb, #5B8DEF 36%, transparent); --tab-active: #D2E1FF; --bubble-top: rgba(255, 255, 255, .20); --bubble-bottom: rgba(255, 255, 255, .06); --bubble-rim: rgba(255, 255, 255, .45);
 
 }
 
@@ -1348,16 +1351,16 @@ textarea.input { resize: vertical; word-break: break-all; }
   transition: color .25s ease, transform .15s var(--ease-out);
 }
 .tab svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.tab[aria-current="page"] { color: var(--accent); }
+.tab[aria-current="page"] { color: var(--tab-active); }
 .tab[aria-current="page"] svg { fill: color-mix(in srgb, var(--accent) 22%, transparent); }
 .tabbar { overflow: visible; }
 .tab:active { transform: scale(.94); }
 .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-/* Bulle « Liquid Glass » : plus grande que la barre, reflet et irisation sur les bords */
+/* Pastille « Liquid Glass » (au repos) → lentille de verre (doigt posé) */
 .tab-bubble {
   position: absolute;
-  top: -5px;
-  bottom: -5px;
+  top: 6px;
+  bottom: 6px;
   left: 0;
   width: 0;
   z-index: 0;
@@ -1365,28 +1368,37 @@ textarea.input { resize: vertical; word-break: break-all; }
   pointer-events: none;
   transform-origin: center;
   will-change: transform;
-  background: linear-gradient(180deg, var(--bubble-top), var(--bubble-bottom));
-  -webkit-backdrop-filter: blur(3px) saturate(220%) brightness(1.06);
-  backdrop-filter: blur(3px) saturate(220%) brightness(1.06);
-  box-shadow:
-    inset 0 1.5px 0 var(--bubble-rim),
-    inset 0 -1px 0 rgba(255, 255, 255, .25),
-    inset 4px 0 8px -4px rgba(255, 80, 170, .35),
-    inset -4px 0 8px -4px rgba(70, 200, 255, .4),
-    0 0 0 1px rgba(255, 255, 255, .22),
-    0 10px 24px -10px rgba(10, 20, 45, .5);
-  transition: box-shadow .25s ease;
+  background: var(--tab-pill);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
+  transition:
+    top .32s var(--ease-spring), bottom .32s var(--ease-spring),
+    background-color .25s ease, background .25s ease, box-shadow .3s ease,
+    -webkit-backdrop-filter .3s ease, backdrop-filter .3s ease;
 }
+/* Doigt posé : lentille transparente qui déborde de la barre, reflets et bandes
+   sombres en haut et en bas (lumière déviée par le verre) */
 .tab-bubble.is-lifted {
+  top: -10px;
+  bottom: -10px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .20), rgba(255, 255, 255, .05) 45%, rgba(255, 255, 255, .12));
+  -webkit-backdrop-filter: blur(1.5px) saturate(185%) brightness(1.08) contrast(1.05);
+  backdrop-filter: blur(1.5px) saturate(185%) brightness(1.08) contrast(1.05);
   box-shadow:
-    inset 0 2px 0 var(--bubble-rim),
-    inset 0 -1px 0 rgba(255, 255, 255, .3),
-    inset 6px 0 10px -5px rgba(255, 80, 170, .45),
-    inset -6px 0 10px -5px rgba(70, 200, 255, .5),
-    0 0 0 1px rgba(255, 255, 255, .3),
-    0 18px 34px -12px rgba(10, 20, 45, .55);
+    inset 0 1.5px 1px rgba(255, 255, 255, .95),
+    inset 0 -1.5px 1px rgba(255, 255, 255, .6),
+    inset 0 15px 9px -8px var(--lens-band),
+    inset 0 -15px 9px -8px var(--lens-band),
+    inset 5px 0 8px -6px rgba(255, 255, 255, .5),
+    inset -5px 0 8px -6px rgba(255, 255, 255, .5),
+    0 0 0 1px rgba(255, 255, 255, .45),
+    0 18px 32px -12px rgba(10, 20, 50, .5);
 }
-.tab.is-hover { color: var(--accent); }
+.tab { transition: color .25s ease, transform .3s var(--ease-spring); }
+/* Sous la lentille, l'onglet paraît grossi */
+.tabbar.is-pressing .tab.is-hover { transform: scale(1.14); }
+.tabbar.is-pressing .tab[aria-current="page"]:not(.is-hover) { color: var(--text); }
+.tab.is-hover { color: var(--tab-active); }
+.tab[aria-current="page"] { font-weight: 700; }
 .tabbar { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
 
 .tab-page[hidden] { display: none !important; }

@@ -1,6 +1,10 @@
-/* Barre d'onglets « Liquid Glass » : une bulle de verre qui se déplace avec un
-   ressort (effet gelée : elle s'étire avec la vitesse et rebondit à l'arrivée),
-   et qu'on peut faire glisser du doigt d'un onglet à l'autre. */
+/* Barre d'onglets « Liquid Glass ».
+   - Au repos : une pastille teintée, à l'intérieur de la barre, sous l'onglet actif.
+   - Doigt posé : la pastille devient une lentille de verre transparente, plus
+     grande que la barre, qui grossit légèrement ce qui est dessous ; elle reste
+     ainsi tant que le doigt est posé et le suit s'il glisse.
+   - Déplacement avec un ressort (effet gelée : étirement selon la vitesse, léger
+     rebond à l'arrivée). */
 window.TC = window.TC || {};
 
 TC.tabbar = (function () {
@@ -18,16 +22,22 @@ TC.tabbar = (function () {
   let drag = null;                 // { startX, startBubble, moved, pointerId }
   let current = null;
 
-  const geometry = (tab) => ({ left: tab.offsetLeft - 5, width: tab.offsetWidth + 10 });
+  const GROW = 16;                 // la lentille est plus large que la pastille (px)
+  const geometry = (tab) => ({ left: tab.offsetLeft, width: tab.offsetWidth });
 
   function render() {
     const stretch = reduced.matches ? 0 : Math.min(Math.abs(v) / 2400, 0.3);
-    const lift = 1 + lifted * 0.1;
-    const sx = (1 + stretch) * lift;
-    const sy = (1 - stretch * 0.55) * lift;
-    bubble.style.width = width + 'px';
-    bubble.style.transform = `translateX(${x.toFixed(2)}px) scale(${sx.toFixed(4)}, ${sy.toFixed(4)})`;
-    bubble.classList.toggle('is-lifted', lifted > 0.5);
+    const sx = 1 + stretch;
+    const sy = 1 - stretch * 0.55;
+    const grow = GROW * lifted;
+    bubble.style.width = (width + grow).toFixed(2) + 'px';
+    bubble.style.transform = `translateX(${(x - grow / 2).toFixed(2)}px) scale(${sx.toFixed(4)}, ${sy.toFixed(4)})`;
+  }
+
+  function setLifted(on) {
+    liftTarget = on ? 1 : 0;
+    bubble.classList.toggle('is-lifted', on);       // transitions CSS : taille, verre, reflets
+    bar.classList.toggle('is-pressing', on);
   }
 
   function step(now) {
@@ -64,8 +74,16 @@ TC.tabbar = (function () {
     return best;
   }
 
+  /* Onglet sous la lentille : légèrement grossi, comme à travers du verre */
   function highlight(tab) {
-    tabs.forEach((t) => t.classList.toggle('is-hover', t === tab && drag && drag.moved));
+    tabs.forEach((t) => t.classList.toggle('is-hover', t === tab));
+  }
+
+  /* Position de la bulle pour que son centre soit sous le doigt */
+  function fingerTarget(clientX) {
+    const rect = bar.getBoundingClientRect();
+    const min = geometry(tabs[0]).left, max = geometry(tabs[tabs.length - 1]).left;
+    return Math.min(Math.max(clientX - rect.left - width / 2, min - 8), max + 8);   // léger dépassement élastique
   }
 
   /* Place la bulle sous l'onglet (animé sauf au premier affichage) */
@@ -80,41 +98,36 @@ TC.tabbar = (function () {
     kick();
   }
 
+  /* Doigt posé : la lentille apparaît tout de suite sous le doigt et y reste */
   function onDown(e) {
     if (e.button !== undefined && e.button !== 0) return;
-    drag = { startX: e.clientX, startBubble: x, moved: false, pointerId: e.pointerId };
-  }
-
-  function onMove(e) {
-    if (!drag || e.pointerId !== drag.pointerId) return;
-    const dx = e.clientX - drag.startX;
-    if (!drag.moved) {
-      if (Math.abs(dx) < DRAG_START) return;
-      drag.moved = true;
-      // on part de la bulle si on l'a saisie, sinon de l'onglet touché
-      const rect = bar.getBoundingClientRect();
-      drag.startBubble = Math.min(Math.max(drag.startX - rect.left - width / 2, 0), bar.clientWidth - width);
-      try { bar.setPointerCapture(e.pointerId); } catch (err) { /* le glissement marche aussi sans */ }
-      liftTarget = 1;
-    }
-    const min = geometry(tabs[0]).left, max = geometry(tabs[tabs.length - 1]).left;
-    target = Math.min(Math.max(drag.startBubble + dx, min - 8), max + 8);   // léger dépassement élastique
+    drag = { startX: e.clientX, moved: false, pointerId: e.pointerId };
+    try { bar.setPointerCapture(e.pointerId); } catch (err) { /* le suivi marche aussi sans */ }
+    setLifted(true);
+    target = fingerTarget(e.clientX);
     highlight(nearest(target));
     kick();
   }
 
+  function onMove(e) {
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    if (!drag.moved && Math.abs(e.clientX - drag.startX) >= DRAG_START) drag.moved = true;
+    target = fingerTarget(e.clientX);
+    highlight(nearest(target));
+    kick();
+  }
+
+  /* Doigt levé : la lentille redevient pastille et se pose sur l'onglet le plus proche */
   function onUp(e) {
     if (!drag || e.pointerId !== drag.pointerId) return;
-    const moved = drag.moved;
+    const cancelled = e.type === 'pointercancel';
     drag = null;
-    liftTarget = 0;
+    setLifted(false);
     highlight(null);
-    if (moved) {
-      const tab = nearest(target);
-      bar.dataset.justDragged = '1';                     // évite le « clic » qui suit le glissement
-      setTimeout(() => { delete bar.dataset.justDragged; }, 50);
-      onSelect(tab.dataset.tabBtn);
-    }
+    bar.dataset.justHandled = '1';                       // évite le « clic » qui suit
+    setTimeout(() => { delete bar.dataset.justHandled; }, 60);
+    if (cancelled) moveTo(current);
+    else onSelect(nearest(target).dataset.tabBtn);
     kick();
   }
 
@@ -124,7 +137,7 @@ TC.tabbar = (function () {
     tabs = [...bar.querySelectorAll('.tab')];
     onSelect = options.onSelect;
     tabs.forEach((t) => t.addEventListener('click', (e) => {
-      if (bar.dataset.justDragged) { e.preventDefault(); return; }
+      if (bar.dataset.justHandled) { e.preventDefault(); return; }    // déjà traité au doigt levé
       onSelect(t.dataset.tabBtn);
     }));
     bar.addEventListener('pointerdown', onDown);
