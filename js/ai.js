@@ -18,10 +18,10 @@ TC.ai = (function () {
   const CLAUDE_URL = 'https://claude.ai/new';
 
   const SUGGESTIONS = [
-    'Analyse ma période : points forts, points faibles',
+    'Analyse ma période de trading : points forts, points faibles',
     'Quels instruments me coûtent le plus, et pourquoi ?',
-    'Est-ce que je trade mieux à certaines heures ?',
-    'Quelles erreurs reviennent le plus souvent ?'
+    'Analyse mon patrimoine : répartition, risques, points d’attention',
+    'Comment mieux organiser mon épargne (livrets, PEA, assurance vie) ?'
   ];
 
   class AiError extends Error {
@@ -131,7 +131,7 @@ TC.ai = (function () {
   function toContents(chat) {
     return chat.messages.map((m, i) => {
       if (m.role === 'user') {
-        const text = i === 0 ? `Voici mon journal :\n\n${chat.context}\n\nMa question : ${m.text}` : m.text;
+        const text = i === 0 ? `Voici mes données :\n\n${chat.context}\n\nMa question : ${m.text}` : m.text;
         return { role: 'user', parts: [{ text }] };
       }
       const part = { text: m.text };
@@ -203,7 +203,7 @@ TC.ai = (function () {
   function periodLabel() {
     if (chat && chat.period) return chat.period.label;
     const p = getPeriod();
-    return p.isWeek ? `Semaine du ${p.view.label}` : p.view.label;
+    return `${p.isWeek ? `Semaine du ${p.view.label}` : p.view.label} · trading + patrimoine`;
   }
 
   function scrollToEnd() { els.messages.scrollTop = els.messages.scrollHeight; }
@@ -313,10 +313,11 @@ TC.ai = (function () {
 
     if (!chat) {
       const p = getPeriod();
+      const accounts = await TC.wealthStore.listAccounts();     // le coach voit aussi le patrimoine
       chat = aiStore.newChat({
         title: question.length > 70 ? question.slice(0, 67) + '…' : question,
-        period: { label: p.isWeek ? `Semaine du ${p.view.label}` : p.view.label, key: p.key },
-        context: aiContext.build(p.view, p.isWeek)
+        period: { label: `${p.isWeek ? `Semaine du ${p.view.label}` : p.view.label} · trading + patrimoine`, key: p.key },
+        context: aiContext.build(p.view, p.isWeek, accounts)
       });
     }
     const userMsg = { role: 'user', text: question, at: Date.now() };
@@ -402,7 +403,7 @@ TC.ai = (function () {
   /* Bouton « Analyser avec Claude » : copie le journal, puis lien vers Claude */
   async function copyForClaude() {
     const p = getPeriod();
-    const text = aiContext.forClaude(p.view, p.isWeek);
+    const text = aiContext.forClaude(p.view, p.isWeek, await TC.wealthStore.listAccounts());
     els.claudeHint.hidden = false;
     try {
       await navigator.clipboard.writeText(text);

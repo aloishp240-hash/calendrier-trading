@@ -6,7 +6,7 @@
    Ce fichier ne voit jamais tes données : elles restent chiffrées dans le
    stockage du navigateur. */
 
-const CACHE = 'orbe-v10';
+const CACHE = 'orbe-v11';
 const CORE = [
   './',
   './index.html',
