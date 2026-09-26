@@ -6,7 +6,7 @@
    Ce fichier ne voit jamais tes données : elles restent chiffrées dans le
    stockage du navigateur. */
 
-const CACHE = 'orbe-v9';
+const CACHE = 'orbe-v10';
 const CORE = [
   './',
   './index.html',
@@ -24,6 +24,7 @@ const CORE = [
   './js/wealth-store.js',
   './js/chart-kit.js',
   './js/forecast.js',
+  './js/widget-summary.js',
   './js/wealth.js',
   './js/tabbar.js',
   './js/lock.js',

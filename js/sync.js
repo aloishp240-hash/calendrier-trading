@@ -157,6 +157,26 @@ TC.sync = (function () {
     throw new SyncError('Conflit de synchronisation — réessaie dans un instant.', 'conflict');
   }
 
+  /* Résumé chiffré pour le widget (Scriptable) : fichier séparé, petit, envoyé
+     seulement s'il a changé. Un échec ici ne bloque jamais la synchro. */
+  const WIDGET_FILE = 'widget.enc.json';
+  let lastWidget = null;
+  async function publishWidget() {
+    if (!TC.widgetSummary || !config || !syncKey) return;
+    const summary = await TC.widgetSummary.build();
+    const json = JSON.stringify(summary);
+    if (json === lastWidget) return;
+    const path = `/repos/${config.owner}/${config.repo}/contents/${WIDGET_FILE}`;
+    const cur = await api(config, path);
+    let sha = null;
+    if (cur.ok) sha = (await cur.json()).sha;
+    else if (cur.status !== 404) return;
+    const body = { message: `Widget ${new Date().toISOString()}`, content: btoa(await encryptMap(summary, syncKey)) };
+    if (sha) body.sha = sha;
+    const res = await api(config, path, { method: 'PUT', body: JSON.stringify(body) });
+    if (res.ok) lastWidget = json;
+  }
+
   async function saveConfig() {
     await storage.setSecure(CONFIG_NAME, config);
   }
@@ -203,6 +223,7 @@ TC.sync = (function () {
     /* Au verrouillage */
     lock() {
       clearTimeout(timer);
+      lastWidget = null;
       config = null;
       syncKey = null;
       setState({ status: 'off', lastSync: null, error: null });
@@ -218,6 +239,7 @@ TC.sync = (function () {
           config.lastSync = Date.now();
           await saveConfig();
           setState({ status: 'idle', lastSync: config.lastSync, error: null });
+          publishWidget().catch(() => { /* le widget se mettra à jour à la prochaine synchro */ });
           if (changedHere) remoteListeners.forEach((fn) => { try { fn(); } catch (e) { /* ignoré */ } });
           return changedHere;
         })
